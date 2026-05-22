@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 绑定对应mapper接口全类名 -->
+<mapper namespace="com.memoryforge.mapper.UserSettingsMapper">
+
+    <!-- 后期复杂sql、多表查询、自定义语句全部写在这里 -->
+
+</mapper>
