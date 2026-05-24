@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node -e \"const{cpSync,existsSync,mkdirSync}=require('fs');const t='../target/classes/static';if(!existsSync(t))mkdirSync(t,{recursive:true});cpSync('../src/main/resources/static',t,{recursive:true})\"",
     "preview": "vite preview"
   },
   "dependencies": {

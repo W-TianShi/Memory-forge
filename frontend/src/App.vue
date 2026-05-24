@@ -4,7 +4,11 @@
       <router-link to="/">单词记忆</router-link>
       <router-link to="/notes">笔记工具</router-link>
     </nav>
-    <router-view />
+    <router-view v-slot="{ Component }">
+      <keep-alive>
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
   </div>
 </template>
 

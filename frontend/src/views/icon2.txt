@@ -1,3 +1,4 @@
+//笔记页面图标
 //加粗
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bold-icon lucide-bold"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/></svg>
 //倾斜
@@ -32,3 +33,35 @@ svg
 <svg t="1779201607419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2088" width="200" height="200"><path d="M730.496 97.152v163.2h200.768v512h-200.832l0.064 161.984-637.952-69.76V167.232l637.952-70.016z m-96 107.072l-445.952 48.96v525.376l445.952 48.704V204.224zM407.808 348.544c13.568 0.64 29.44 9.024 33.28 30.592 4.928 23.36 0.192 48.832-4.928 70.848l-2.56 10.752-0.32 1.408c11.84 30.72 28.16 51.328 52.992 66.56 50.56-6.336 83.008-2.88 96.384 10.24 9.216 9.216 11.904 26.432 6.272 40.064-3.2 7.808-11.84 20.736-33.664 20.736-22.08 0-54.528-9.792-83.008-25.088-25.792 4.352-54.336 14.08-81.856 23.36l-17.792 6.016c-38.4 65.92-67.2 80.256-85.056 80.256a31.36 31.36 0 0 1-10.88-1.984 32 32 0 0 1-16.704-15.168 29.504 29.504 0 0 1-3.52-19.072c5.952-30.08 46.08-53.952 76.032-69.44 16.064-28.288 38.016-75.968 51.776-108.736-10.88-42.24-16.896-75.392-10.24-99.712 3.584-13.184 17.792-22.336 33.792-21.632z m427.456 7.872h-104.832v320h104.832v-320zM322.368 615.68c-10.432 9.472-23.68 22.656-30.464 35.072 5.76-4.48 16.384-14.656 30.464-35.072z m86.976-116.288a601.536 601.536 0 0 1-32.448 72.192l12.416-5.056c17.792-7.296 37.76-15.488 59.52-20.48a165.12 165.12 0 0 1-39.488-46.72z m111.744 58.752c32.704 12.864 42.368 9.856 44.544 8.64l0.448-0.256c0.768-0.384 0.64-0.704 0.64-0.896-0.128-0.128-3.328-6.784-29.184-7.68l-7.68-0.064zM408.704 375.552c-2.944 3.328-2.176 31.872 2.752 51.968 4.032-13.76 4.736-40.96-0.512-49.92-0.704-1.28-1.408-1.92-2.24-2.048z" fill="#4A4B72" p-id="2089"></path></svg>
 //导出word图标
 <svg t="1779201632371" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2234" width="200" height="200"><path d="M722.56 95.488v164.864h206.4v512H722.56l0.064 168.064-629.888-70.4V166.208l629.888-70.72zM626.56 202.88l-437.888 49.152v532.096l437.888 48.96V202.88z m206.4 153.536H722.56v320h110.464v-320z m-526.528 32.512l22.848 114.24 10.816 76.16h2.176c3.008-17.024 5.76-34.24 9.216-51.136l31.616-139.264h68.992l27.264 114.24c5.824 25.088 10.368 50.624 15.68 76.16h2.24l7.04-50.88c1.216-8.448 2.56-16.896 4.224-25.28l21.952-114.24h73.92l-60.096 254.912H451.2l-21.504-97.216-6.848-35.84a2419.84 2419.84 0 0 1-6.592-38.976h-2.24l-5.824 38.976c-1.984 12.224-4.032 24-6.272 35.84l-20.608 97.28h-90.88l-62.72-254.976h78.848z" fill="#4A4B72" p-id="2235"></path></svg>
+//undo
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-undo-icon lucide-undo"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+//redo
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-redo-icon lucide-redo"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+
+
+//-------------------分割线----------------------
+//单词页面图标
+//查询单词和释义
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-book-search-icon lucide-book-search"><path d="M11 22H5.5a1 1 0 0 1 0-5h4.501"/><path d="m21 22-1.879-1.878"/><path d="M3 19.5v-15A2.5 2.5 0 0 1 5.5 2H18a1 1 0 0 1 1 1v8"/><circle cx="17" cy="18" r="3"/></svg>
+//复原
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-ccw-icon lucide-rotate-ccw"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+//释义挖空
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M12 7v14"/>
+<path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>
+<path d="M6 12h2"/>
+<path d="M6 8h2"/>
+</svg>
+//单词挖空
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M12 7v14"/>
+<path d="M16 12h2"/>
+<path d="M16 8h2"/>
+<path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>
+</svg>
+//音标
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-brackets-icon lucide-brackets"><path d="M16 3h3a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-3"/><path d="M8 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h3"/></svg>
+//新增单词框
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid2x2-plus-icon lucide-grid-2x2-plus"><path d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"/><path d="M16 19h6"/><path d="M19 22v-6"/></svg>
+//删除单词框
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid2x2-x-icon lucide-grid-2x2-x"><path d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"/><path d="m16 16 5 5"/><path d="m16 21 5-5"/></svg>

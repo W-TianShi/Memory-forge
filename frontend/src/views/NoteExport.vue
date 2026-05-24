@@ -2,7 +2,7 @@
   <div class="note-app">
     <div class="toast" :class="{ show: toastVisible }">{{ toastMsg }}</div>
 
-    <div class="left">
+    <div class="left" :class="{ collapsed: leftCollapsed }">
       <h3>笔记列表</h3>
       <button class="btn" @click="addNote">+ 新建笔记</button>
       <div id="noteList">
@@ -12,11 +12,23 @@
           {{ note.title }}
           <span class="del" @click.stop="deleteNote(note.id)">×</span>
         </div>
-      </div>
+    </div>
+  </div>
+
+    <div class="toggle-bar" @click="toggleLeft" :title="leftCollapsed ? '展开列表' : '收起列表'">
+      <span class="toggle-arrow">{{ leftCollapsed ? '▶' : '◀' }}</span>
     </div>
 
     <div class="right">
       <div class="bar">
+        <!-- 撤销 / 重做 -->
+        <div class="icon-btn" title="撤销 (Ctrl+Z)" @click="undo">
+          <svg v-bind="svg24" v-html="I.undo"></svg>
+        </div>
+        <div class="icon-btn" title="重做 (Ctrl+Shift+Z)" @click="redo">
+          <svg v-bind="svg24" v-html="I.redo"></svg>
+        </div>
+        <div class="bar-sep"></div>
         <!-- 挖空 -->
         <div class="icon-btn" id="mkBlank" title="选中文字 → 点击挖空" @click="makeBlank">
           <svg v-bind="svg24" v-html="I.shovel"></svg>
@@ -90,7 +102,7 @@
 
       <!-- 编辑器 -->
       <div id="editor" ref="editorRef" contenteditable="true"
-           @input="onEditorInput" @paste="onPaste"
+           @input="onEditorInput" @paste="onPaste" @keydown="onEditorKeydown" @click="onEditorClick"
            :class="{ 'is-empty': isEditorEmpty, 'show-all': showAnswer }"
            :style="{ '--answer-color': answerColor }"></div>
     </div>
@@ -99,6 +111,9 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+
+defineOptions({ name: 'NoteExport' })
+
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import { I, SVG24, SVG1024 } from '../icons.js'
@@ -134,6 +149,7 @@ const notes = ref([])
 const currentId = ref(null)
 const editorRef = ref(null)
 const isEditorEmpty = ref(true)
+const leftCollapsed = ref(false)
 const currentNote = computed(() => notes.value.find(n => n.id === currentId.value))
 const currentTitle = computed(() => currentNote.value?.title || '未命名笔记')
 
@@ -145,11 +161,26 @@ function syncEditorToNote() {
 function updateIsEmpty() {
   if (editorRef.value) isEditorEmpty.value = !editorRef.value.textContent?.trim()
 }
-function onEditorInput() { syncEditorToNote(); saveNotes(); updateIsEmpty() }
+function onEditorInput() {
+  syncEditorToNote()
+  saveNotes()
+  updateIsEmpty()
+  // 编辑器为空时清除残留格式标签，避免新文字继承旧颜色
+  if (isEditorEmpty.value && editorRef.value.innerHTML.trim()) {
+    editorRef.value.innerHTML = ''
+  }
+}
 function onPaste(e) {
   e.preventDefault()
   const text = (e.clipboardData || window.clipboardData).getData('text/plain')
-  document.execCommand('insertText', false, text)
+  const urlRegex = /https?:\/\/[^\s<>"]+/g
+  if (urlRegex.test(text)) {
+    urlRegex.lastIndex = 0
+    const html = text.replace(urlRegex, url => `<a href="${url}" target="_blank" rel="noopener" title="Ctrl+点击打开链接">${url}</a>`)
+    document.execCommand('insertHTML', false, html)
+  } else {
+    document.execCommand('insertText', false, text)
+  }
 }
 
 function loadNoteContent(note) {
@@ -191,6 +222,10 @@ function switchNote(note) {
   currentId.value = note.id
   loadNoteContent(note)
   showToast('切换：' + note.title)
+}
+
+function toggleLeft() {
+  leftCollapsed.value = !leftCollapsed.value
 }
 
 // ---- 挖空 ----
@@ -272,6 +307,33 @@ function clearFormat() {
   syncEditorToNote()
   saveNotes()
   showToast('已清除格式')
+}
+
+function undo() {
+  editorRef.value.focus()
+  document.execCommand('undo', false, null)
+}
+
+function redo() {
+  editorRef.value.focus()
+  document.execCommand('redo', false, null)
+}
+
+function onEditorKeydown(e) {
+  if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault()
+    undo()
+  } else if (e.ctrlKey && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault()
+    redo()
+  }
+}
+
+function onEditorClick(e) {
+  if (e.ctrlKey && e.target.tagName === 'A') {
+    e.preventDefault()
+    window.open(e.target.href, '_blank')
+  }
 }
 
 // ---- 导出 ----
@@ -381,8 +443,13 @@ onUnmounted(() => {
 
 .note-app { display: flex; height: calc(100vh - 42px); overflow: hidden; }
 
-.left { width: 260px; border-right: 1px solid #ccc; padding: 15px; display: flex; flex-direction: column; flex-shrink: 0; }
+.left { width: 260px; flex-shrink: 0; padding: 15px; display: flex; flex-direction: column; border-right: 1px solid #ccc; position: relative; transition: width 0.2s, padding 0.2s; overflow: hidden; }
+.left.collapsed { width: 0; padding: 0; border-right: none; }
 .left h3 { margin-bottom: 15px; text-align: center; }
+
+.toggle-bar { width: 14px; background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; }
+.toggle-arrow { font-size: 9px; color: #bbb; background: #e8e8e8; width: 14px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: all 0.15s; }
+.toggle-bar:hover .toggle-arrow { color: #409eff; background: #d0d0d0; }
 .btn { padding: 8px 16px; background: #409eff; color: white; border: none; border-radius: 6px; cursor: pointer; margin-bottom: 10px; user-select: none; }
 
 #noteList { flex: 1; overflow-y: auto; margin-top: 10px; }
@@ -414,6 +481,8 @@ onUnmounted(() => {
 .sub-color-bar .color-item.clear-bg::after { content: '×'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #999; font-weight: bold; }
 
 #editor { flex: 1; border: 1px solid #ccc; padding: 15px; font-size: 16px; line-height: 1.8; overflow-y: auto; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; word-break: break-all; outline: none; max-width: 120ch; font-family: system-ui, -apple-system, sans-serif; }
+#editor :deep(a) { color: #409eff; text-decoration: underline; cursor: pointer; }
+#editor :deep(a):hover { color: #337ecc; }
 
 .toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.7); color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 14px; z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
 .toast.show { opacity: 1; }
