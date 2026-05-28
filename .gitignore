@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Sensitive config ###
+src/main/resources/application.yml
+
+### Frontend build output ###
+src/main/resources/static/assets/
