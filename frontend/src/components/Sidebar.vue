@@ -9,7 +9,7 @@ defineProps({
 
 const emit = defineEmits([
   'searchAll', 'toggleWordHidden', 'togglePhoneticHidden', 'toggleMeaningHidden',
-  'resetAll', 'addWord', 'removeLastWord', 'exportPdf'
+  'resetAll', 'addWord', 'removeLastWord', 'batchImport', 'exportPdf'
 ])
 </script>
 
@@ -39,6 +39,9 @@ const emit = defineEmits([
         <SvgIcon name="delWordBox" />
       </div>
       <div class="bar-sep"></div>
+      <div class="icon-btn" title="批量导入单词" @click="emit('batchImport')">
+        <SvgIcon name="importWords" />
+      </div>
       <div class="icon-btn" title="导出 PDF" @click="emit('exportPdf')">
         <SvgIcon name="exportPdf" />
       </div>

@@ -9,6 +9,9 @@ spring:
     url: jdbc:mysql://localhost:3306/memory_forge_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowMultiQueries=true
     username: root
     password: 123456  # 改成你自己的MySQL密码
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 5
 
   devtools:
     restart:
@@ -23,3 +26,9 @@ mybatis-plus:
   global-config:
     db-config:
       id-type: auto
+
+ai:
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY:sk-4e9a15cad9ef4bd3a879907e552bc31c}
+    base-url: https://api.deepseek.com
+    model: deepseek-chat

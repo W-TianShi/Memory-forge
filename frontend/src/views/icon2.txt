@@ -19,11 +19,11 @@ svg
 <path d="m9 15 7.879-7.878"/>
 <g transform="translate(12,11) scale(0.45)">
 <path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/>
-<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>
+<circle cx="13.5"cy="6.5" r=".5" fill="currentColor"/>
 <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/>
 <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
 <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>
-</g>
+</g> 
 </svg>
 //擦除所有格式
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eraser-icon lucide-eraser"><path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21"/><path d="m5.082 11.09 8.828 8.828"/></svg>
@@ -37,6 +37,24 @@ svg
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-undo-icon lucide-undo"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
 //redo
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-redo-icon lucide-redo"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+//代码块
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code-icon lucide-code"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>
+//标题Heading
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-heading-icon lucide-heading"><path d="M6 12h12"/><path d="M6 20V4"/><path d="M18 20V4"/></svg>
+//todo
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-big-icon lucide-circle-check-big"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>
+//有序列表
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-ordered-icon lucide-list-ordered"><path d="M11 5h10"/><path d="M11 12h10"/><path d="M11 19h10"/><path d="M4 4h1v5"/><path d="M4 9h2"/><path d="M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02"/></svg>
+//网格纸
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid3x3-icon lucide-grid-3x3"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+//笔记纸模板
+<svg t="1779863064252" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2770" width="200" height="200"><path d="M921.6 102.4v358.4h-256V102.4h256M358.4 102.4v153.6H102.4V102.4h256m0 460.8v358.4H102.4v-358.4h256m563.2 204.8v153.6h-256v-153.6h256m0-768h-256c-56.32 0-102.4 46.08-102.4 102.4v358.4c0 56.32 46.08 102.4 102.4 102.4h256c56.32 0 102.4-46.08 102.4-102.4V102.4c0-56.32-46.08-102.4-102.4-102.4zM358.4 0H102.4C46.08 0 0 46.08 0 102.4v153.6c0 56.32 46.08 102.4 102.4 102.4h256c56.32 0 102.4-46.08 102.4-102.4V102.4c0-56.32-46.08-102.4-102.4-102.4z m0 460.8H102.4c-56.32 0-102.4 46.08-102.4 102.4v358.4c0 56.32 46.08 102.4 102.4 102.4h256c56.32 0 102.4-46.08 102.4-102.4v-358.4c0-56.32-46.08-102.4-102.4-102.4z m563.2 204.8h-256c-56.32 0-102.4 46.08-102.4 102.4v153.6c0 56.32 46.08 102.4 102.4 102.4h256c56.32 0 102.4-46.08 102.4-102.4v-153.6c0-56.32-46.08-102.4-102.4-102.4z" fill="#FFAC02" p-id="2771"></path></svg>
+//矩阵点纸
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grip-icon lucide-grip"><circle cx="12" cy="5" r="1"/><circle cx="19" cy="5" r="1"/><circle cx="5" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="12" cy="19" r="1"/><circle cx="19" cy="19" r="1"/><circle cx="5" cy="19" r="1"/></svg>
+//等轴测网格纸
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hexagon-icon lucide-hexagon"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+//工程方格纸
+<svg t="1779884124716" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="5360" width="200" height="200"><path d="M922 64.2H100.7c-20.6 0-37.3 16.7-37.3 37.3v821.3c0 20.6 16.7 37.3 37.3 37.3H922c20.6 0 37.3-16.7 37.3-37.3V101.6c0-20.7-16.7-37.4-37.3-37.4z m0 858.7H100.7V101.6H922v821.3z" fill="#646464" p-id="5361"></path><path d="M138 138.8h158.7v158.7H138zM334 138.8h158.7v158.7H334zM530 138.8h158.7v158.7H530zM726 138.8h158.7v158.7H726z" fill="#646464" p-id="5362"></path><path d="M138 334.8h158.7v158.7H138zM334 334.8h158.7v158.7H334zM530 334.8h158.7v158.7H530zM726 334.8h158.7v158.7H726z" fill="#646464" p-id="5363"></path><path d="M138 530.8h158.7v158.7H138zM334 530.8h158.7v158.7H334zM530 530.8h158.7v158.7H530zM726 530.8h158.7v158.7H726z" fill="#646464" p-id="5364"></path><path d="M138 726.8h158.7v158.7H138zM334 726.8h158.7v158.7H334zM530 726.8h158.7v158.7H530zM726 726.8h158.7v158.7H726z" fill="#646464" p-id="5365"></path></svg>
 
 
 //-------------------分割线----------------------
@@ -65,3 +83,5 @@ svg
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid2x2-plus-icon lucide-grid-2x2-plus"><path d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"/><path d="M16 19h6"/><path d="M19 22v-6"/></svg>
 //删除单词框
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid2x2-x-icon lucide-grid-2x2-x"><path d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"/><path d="m16 16 5 5"/><path d="m16 21 5-5"/></svg>
+//批量导入单词
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-import-icon lucide-import"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></svg>

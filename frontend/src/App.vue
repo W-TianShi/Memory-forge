@@ -3,9 +3,11 @@
     <nav class="app-nav">
       <router-link to="/">单词记忆</router-link>
       <router-link to="/notes">笔记工具</router-link>
+      <router-link to="/math-ai">数学AI</router-link>
+      <router-link to="/mistakes">错题整理</router-link>
     </nav>
     <router-view v-slot="{ Component }">
-      <keep-alive>
+      <keep-alive :include="['WordMemory', 'NoteExport', 'MathAI', 'MistakesBook']">
         <component :is="Component" />
       </keep-alive>
     </router-view>
@@ -28,6 +30,9 @@
   background: #f5f7fa;
   border-bottom: 1px solid #e0e0e0;
   justify-content: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 .app-nav a {
   text-decoration: none;

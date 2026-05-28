@@ -3,18 +3,17 @@ import { ref, computed, watch, nextTick } from 'vue'
 const PAGE_SIZE = 50
 const MAX_UNDO = 50
 
-const defaultWordList = [
-  "unfortunately", "universal", "upset", "vague", "vary",
-  "vast", "version", "violate", "virtue", "vital", "vote",
-  "abandon", "ability", "able", "abroad", "absent",
-  "accept", "access", "accident", "account", "achieve"
-]
+const DEFAULT_COUNT = 20
 
-export function useWords(contentRef, indexOffset) {
+function createEmptyWords(count) {
+  return Array.from({ length: count }, (_, i) => ({
+    word: '', phonetic: '', meaning: '', originalIndex: i, col: i % 2
+  }))
+}
 
-  const words = ref(defaultWordList.map((w, i) => ({
-    word: w, phonetic: '', meaning: '', originalIndex: i, col: i % 2
-  })))
+export function useWords(contentRef) {
+
+  const words = ref(createEmptyWords(DEFAULT_COUNT))
   const currentPage = ref(0)
   const undoStack = ref([])
 
@@ -48,8 +47,8 @@ export function useWords(contentRef, indexOffset) {
   }
 
   function displayIndex(item) {
-    const idx = globalIndex(item)
-    return String(idx + 1 + (indexOffset?.value ?? 0)).padStart(2, '0')
+    const posInPage = pageWords.value.findIndex(w => w.originalIndex === item.originalIndex)
+    return String(posInPage + 1).padStart(2, '0')
   }
 
   function pushUndo() {
@@ -156,6 +155,26 @@ export function useWords(contentRef, indexOffset) {
     if (currentPage.value >= totalPages.value) currentPage.value = Math.max(0, totalPages.value - 1)
   }
 
+  function batchAddWords(wordList) {
+    if (!wordList || wordList.length === 0) return
+    syncFromDOM()
+    pushUndo()
+    let wi = 0
+    for (const w of words.value) {
+      if (wi >= wordList.length) break
+      if (!w.word.trim() && !w.phonetic.trim() && !w.meaning.trim()) {
+        w.word = wordList[wi]
+        wi++
+      }
+    }
+    const startCol = nextCol()
+    for (let i = wi; i < wordList.length; i++) {
+      words.value.push({ word: wordList[i], phonetic: '', meaning: '', originalIndex: Date.now() + i, col: (startCol + (i - wi)) % 2 })
+    }
+    const newPage = Math.floor((words.value.length - 1) / PAGE_SIZE)
+    if (newPage !== currentPage.value) currentPage.value = newPage
+  }
+
   function prevPage() { if (currentPage.value > 0) currentPage.value-- }
   function nextPage() { if (currentPage.value < totalPages.value - 1) currentPage.value++ }
 
@@ -164,6 +183,7 @@ export function useWords(contentRef, indexOffset) {
     nextCol, globalIndex, displayIndex,
     pushUndo, undo, syncFromDOM,
     onWordKeydown, addWordEnd, removeWord, addWord, removeLastWord,
-    addPage, deletePage, prevPage, nextPage
+    addPage, deletePage, prevPage, nextPage,
+    batchAddWords
   }
 }
