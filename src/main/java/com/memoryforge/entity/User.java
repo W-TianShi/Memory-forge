@@ -11,8 +11,11 @@ import java.time.LocalDateTime;
 public class User {
     @TableId(type = IdType.AUTO)
     private Long id;
+    private String email;
     private String username;
     private String password;
-    private LocalDateTime createTime;
-    private LocalDateTime updateTime;
+    private Integer emailVerified;
+    private Integer status;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

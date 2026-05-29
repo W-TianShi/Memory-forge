@@ -15,6 +15,21 @@
           <span class="del" @click.stop="deleteNote(note.id)">×</span>
         </div>
       </div>
+      <Teleport to="#nav-right">
+        <div class="settings-btn" @click.stop="settingsVisible = !settingsVisible" title="设置">
+          <svg v-bind="svg24" v-html="I.settings"></svg>
+        </div>
+        <div class="settings-panel" v-show="settingsVisible" @click.stop>
+          <div class="s-title">数据管理</div>
+          <div class="s-row"><span class="s-label">数据存储在浏览器中</span></div>
+          <div class="s-row s-actions">
+            <button class="s-btn" @click="exportNotes">导出备份</button>
+          </div>
+          <div class="s-row s-actions">
+            <button class="s-btn s-btn-dull" @click="importNotes">导入恢复</button>
+          </div>
+        </div>
+      </Teleport>
     </div>
 
     <div class="toggle-strip" :class="{ collapsed: leftCollapsed }" @click="toggleLeft" :title="leftCollapsed ? '展开列表' : '收起列表'">
@@ -124,6 +139,7 @@
              :class="{ 'is-empty': isEditorEmpty, 'show-all': showAnswer, 'grid-paper': gridMode, 'dot-grid': dotGridMode, 'iso-grid': isoGridMode, 'eng-grid-solid': engGridMode === 'solid', 'eng-grid-dashed': engGridMode === 'dashed' }"
              :style="{ '--answer-color': answerColor }"></div>
       </div>
+
     </div>
   </div>
 </template>
@@ -173,6 +189,7 @@ const currentId = ref(null)
 const editorRef = ref(null)
 const isEditorEmpty = ref(true)
 const leftCollapsed = ref(false)
+const settingsVisible = ref(false)
 const gridMode = ref(false)
 const dotGridMode = ref(false)
 const isoGridMode = ref(false)
@@ -198,7 +215,9 @@ function toggleEngGrid() {
 const currentNote = computed(() => notes.value.find(n => n.id === currentId.value))
 const currentTitle = computed(() => currentNote.value?.title || '未命名笔记')
 
-function saveNotes() { localStorage.setItem('notes', JSON.stringify(notes.value)) }
+function saveNotes() {
+  localStorage.setItem('notes', JSON.stringify(notes.value))
+}
 function syncEditorToNote() {
   const note = notes.value.find(n => n.id === currentId.value)
   if (note && editorRef.value) note.content = editorRef.value.innerHTML
@@ -241,6 +260,47 @@ function renderMath(html) {
 }
 
 function onPaste(e) {
+  const items = (e.clipboardData || window.clipboardData)?.items
+  if (items) {
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        const reader = new FileReader()
+        reader.onload = () => {
+          const img = new Image()
+          img.onload = () => {
+            const w = Math.min(img.naturalWidth, 700)
+            const el = document.createElement('img')
+            el.src = reader.result
+
+            const wrap = document.createElement('div')
+            wrap.className = 'img-wrap'
+            wrap.setAttribute('contenteditable', 'false')
+            wrap.style.width = w + 'px'
+            wrap.appendChild(el)
+
+            editorRef.value.focus()
+            const sel = window.getSelection()
+            if (sel.rangeCount > 0) {
+              sel.getRangeAt(0).insertNode(wrap)
+              const after = document.createRange()
+              after.setStartAfter(wrap)
+              after.collapse(true)
+              sel.removeAllRanges()
+              sel.addRange(after)
+            }
+            syncEditorToNote()
+            saveNotes()
+            showToast('图片已插入 · 拖拽右下角缩放')
+          }
+          img.src = reader.result
+        }
+        reader.readAsDataURL(file)
+        return
+      }
+    }
+  }
   e.preventDefault()
   const text = (e.clipboardData || window.clipboardData).getData('text/plain')
   if (looksLikeMarkdown(text) || hasMath(text)) {
@@ -302,6 +362,45 @@ function switchNote(note) {
   currentId.value = note.id
   loadNoteContent(note)
   showToast('切换：' + note.title)
+}
+
+// ---- 导入导出 ----
+function exportNotes() {
+  syncEditorToNote()
+  const blob = new Blob([JSON.stringify(notes.value, null, 2)], { type: 'application/json' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `memory-forge-backup-${new Date().toISOString().slice(0,10)}.json`
+  a.click()
+  URL.revokeObjectURL(a.href)
+  showToast('备份已下载')
+  settingsVisible.value = false
+}
+
+function importNotes() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) return
+    try {
+      const data = JSON.parse(await file.text())
+      if (Array.isArray(data)) {
+        notes.value = data
+        localStorage.setItem('notes', JSON.stringify(data))
+        if (data.length > 0) {
+          currentId.value = data[0].id
+          loadNoteContent(data[0])
+        }
+        showToast(`已恢复 ${data.length} 条笔记`)
+      } else {
+        showToast('文件格式不对')
+      }
+    } catch { showToast('文件损坏，无法读取') }
+    settingsVisible.value = false
+  }
+  input.click()
 }
 
 function toggleLeft() {
@@ -563,6 +662,37 @@ function redo() {
 }
 
 function onEditorKeydown(e) {
+  if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault()
+    if (e.shiftKey) {
+      document.execCommand('outdent', false, null)
+    } else {
+      const sel = window.getSelection()
+      if (sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0)
+        range.deleteContents()
+        const tabNode = document.createTextNode('\t')
+        range.insertNode(tabNode)
+        range.setStartAfter(tabNode)
+        range.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
+    }
+    syncEditorToNote()
+    saveNotes()
+    return
+  }
+  if (e.altKey && e.key === 'ArrowUp') {
+    e.preventDefault()
+    moveBlock('up')
+    return
+  }
+  if (e.altKey && e.key === 'ArrowDown') {
+    e.preventDefault()
+    moveBlock('down')
+    return
+  }
   if (e.altKey && e.key.toLowerCase() === 'q') {
     e.preventDefault()
     makeBlank()
@@ -597,6 +727,38 @@ function onEditorKeydown(e) {
     e.preventDefault()
     redo()
   }
+}
+
+function moveBlock(dir) {
+  const sel = window.getSelection()
+  if (!sel.rangeCount || !editorRef.value) return
+  let node = sel.getRangeAt(0).startContainer
+  if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+
+  const block = node.closest('#editor > *')
+  if (!block) return
+
+  const editor = editorRef.value
+  if (dir === 'up') {
+    const prev = block.previousElementSibling
+    if (!prev) return
+    editor.insertBefore(block, prev)
+  } else {
+    const next = block.nextElementSibling
+    if (!next) return
+    editor.insertBefore(block, next.nextElementSibling)
+  }
+
+  const range = document.createRange()
+  const anchor = block.firstChild || block
+  range.setStart(anchor, 0)
+  range.collapse(true)
+  sel.removeAllRanges()
+  sel.addRange(range)
+
+  syncEditorToNote()
+  saveNotes()
+  scrollCursorIntoView()
 }
 
 // ---- 导出 ----
@@ -777,7 +939,7 @@ function exportWord() {
   syncEditorToNote()
   const fn = getFileName('doc')
   showToast('正在导出Word…')
-  const styles = `<style>body{font-size:16px;line-height:1.8;margin:20px;font-family:微软雅黑}p{margin:0}ol,ul{padding-left:1.5em}.blank{display:inline;border-bottom:2px solid #999;color:${answerColor.value}}br{line-height:1.8}</style>`
+  const styles = `<style>body{font-size:16px;line-height:1.8;margin:20px;font-family:微软雅黑}p{margin:0}ol,ul{padding-left:1.5em}.blank{display:inline;border-bottom:2px solid #999;color:${answerColor.value}}.img-wrap{display:inline-block;max-width:100%}.img-wrap img{width:100%;display:block}br{line-height:1.8}</style>`
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">${styles}</head><body>${editorRef.value.innerHTML}</body></html>`
   const blob = new Blob([html], { type: 'application/msword' })
   const url = URL.createObjectURL(blob)
@@ -819,6 +981,7 @@ onMounted(() => {
     notes.value = [{ id: currentId.value, title: '默认笔记', content: '' }]
     saveNotes()
   }
+  gridMode.value = true
   document.addEventListener('selectionchange', updateFormatStates)
   nextTick(() => updateIsEmpty())
 })
@@ -903,6 +1066,42 @@ onUnmounted(() => {
 }
 .btn-new:hover { background: #337ecc; }
 
+.settings-btn {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 5px; cursor: pointer; user-select: none;
+  color: #999; transition: all 0.15s;
+}
+.settings-btn:hover { background: #f0f0f0; color: #555; }
+.settings-btn svg { width: 18px; height: 18px; }
+
+.settings-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  width: 220px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  z-index: 200;
+}
+.s-title { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
+.s-row { margin-bottom: 6px; }
+.s-label { font-size: 11px; color: #888; }
+.s-actions { margin-top: 8px; }
+.s-btn {
+  width: 100%; padding: 6px 0;
+  background: #409eff; color: #fff;
+  border: none; border-radius: 4px;
+  cursor: pointer; font-size: 12px;
+  transition: background 0.15s;
+}
+.s-btn:hover { background: #337ecc; }
+.s-btn-dull { background: #909399; }
+.s-btn-dull:hover { background: #787b80; }
 #noteList { flex: 1; overflow-y: auto; }
 #noteList::-webkit-scrollbar { width: 4px; }
 #noteList::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 2px; }
@@ -1086,6 +1285,23 @@ onUnmounted(() => {
 }
 #editor :deep(a) { color: #409eff; text-decoration: underline; cursor: pointer; }
 #editor :deep(a):hover { color: #337ecc; }
+#editor :deep(.img-wrap) {
+  display: inline-block;
+  resize: horizontal;
+  overflow: hidden;
+  max-width: 100%;
+  min-width: 80px;
+  border-radius: 4px;
+  vertical-align: bottom;
+  font-size: 0; line-height: 0;
+}
+#editor :deep(.img-wrap img) {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  border-radius: 4px;
+}
 #editor :deep(pre) {
   background: #fafafa;
   border: none;

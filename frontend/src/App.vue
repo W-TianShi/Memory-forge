@@ -5,6 +5,7 @@
       <router-link to="/notes">笔记工具</router-link>
       <router-link to="/math-ai">数学AI</router-link>
       <router-link to="/mistakes">错题整理</router-link>
+      <div class="nav-right" id="nav-right"></div>
     </nav>
     <router-view v-slot="{ Component }">
       <keep-alive :include="['WordMemory', 'NoteExport', 'MathAI', 'MistakesBook']">
@@ -49,5 +50,11 @@
 .app-nav a.router-link-active {
   background: #409eff;
   color: #fff;
+}
+.app-nav .nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  position: relative;
 }
 </style>
