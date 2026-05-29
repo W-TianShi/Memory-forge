@@ -2,6 +2,7 @@ package com.memoryforge.controller;
 
 import com.memoryforge.dto.AuthRequest;
 import com.memoryforge.dto.AuthResponse;
+import com.memoryforge.dto.EmailRequest;
 import com.memoryforge.dto.VerifyRequest;
 import com.memoryforge.entity.User;
 import com.memoryforge.mapper.UserMapper;
@@ -34,8 +35,11 @@ public class AuthController {
     }
 
     @PostMapping("/send-code")
-    public AuthResponse sendCode(@RequestBody @Valid VerifyRequest req) {
-        // check if email already registered for REGISTER type
+    public AuthResponse sendCode(@RequestBody @Valid EmailRequest req) {
+        // check rate limit: one code per 60 seconds
+        if (vcService.hasRecentCode(req.getEmail(), "REGISTER", 60)) {
+            return new AuthResponse(false, "发送太频繁，请稍后再试", null, null);
+        }
         String code = vcService.generateCode(req.getEmail(), "REGISTER");
         emailService.sendCode(req.getEmail(), code);
         return new AuthResponse(true, "验证码已发送", null, null);
@@ -46,6 +50,9 @@ public class AuthController {
         User exist = userMapper.findByEmail(req.getEmail());
         if (exist != null) {
             return new AuthResponse(false, "该邮箱已注册", null, null);
+        }
+        if (!vcService.verify(req.getEmail(), req.getCode(), "REGISTER")) {
+            return new AuthResponse(false, "验证码错误或已过期", null, null);
         }
         User user = new User();
         user.setEmail(req.getEmail());

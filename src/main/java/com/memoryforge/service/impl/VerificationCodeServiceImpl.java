@@ -32,4 +32,9 @@ public class VerificationCodeServiceImpl extends ServiceImpl<VerificationCodeMap
         updateById(vc);
         return true;
     }
+
+    @Override
+    public boolean hasRecentCode(String email, String type, int seconds) {
+        return getBaseMapper().findRecentCode(email, type, seconds) != null;
+    }
 }
