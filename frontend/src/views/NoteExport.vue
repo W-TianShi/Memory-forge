@@ -1106,6 +1106,9 @@ async function exportPdf() {
       pageEl.querySelectorAll('code').forEach(el => {
         el.style.background = 'transparent'
       })
+      pageEl.querySelectorAll('.blank').forEach(el => {
+        el.style.color = showAnswer.value ? answerColor.value : 'transparent'
+      })
 
       await new Promise(r => requestAnimationFrame(r))
       const canvas = await html2canvas(pageEl, { scale: 2, useCORS: true, backgroundColor: null })
@@ -1130,7 +1133,7 @@ function exportWord() {
   syncEditorToNote()
   const fn = getFileName('doc')
   showToast('正在导出Word…')
-  const styles = `<style>body{font-size:16px;line-height:1.8;margin:20px;font-family:微软雅黑}p{margin:0}ol,ul{padding-left:1.5em}.blank{display:inline;border-bottom:2px solid #999;color:${answerColor.value}}.img-wrap{display:inline-block;max-width:100%}.img-wrap img{width:100%;display:block}br{line-height:1.8}</style>`
+  const styles = `<style>body{font-size:16px;line-height:1.8;margin:20px;font-family:微软雅黑}p{margin:0}ol,ul{padding-left:1.5em}.blank{display:inline;border-bottom:2px solid #999;color:${showAnswer.value ? answerColor.value : 'transparent'}}.img-wrap{display:inline-block;max-width:100%}.img-wrap img{width:100%;display:block}br{line-height:1.8}</style>`
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">${styles}</head><body>${editorRef.value.innerHTML}</body></html>`
   const blob = new Blob([html], { type: 'application/msword' })
   const url = URL.createObjectURL(blob)
