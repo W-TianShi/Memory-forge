@@ -1,10 +1,16 @@
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onUnmounted } from 'vue'
 import { marked } from 'marked'
 import katex from 'katex'
 
 const props = defineProps({
   selectedProblem: Object
+})
+
+let abortController = null
+
+onUnmounted(() => {
+  if (abortController) abortController.abort()
 })
 
 const mode = ref('full')
@@ -165,10 +171,13 @@ async function send(msg) {
   }
 
   try {
+    if (abortController) abortController.abort()
+    abortController = new AbortController()
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: abortController.signal
     })
 
     const reader = response.body.getReader()

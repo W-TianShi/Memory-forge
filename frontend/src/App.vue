@@ -47,11 +47,13 @@
       </div>
     </div>
 
+    <div class="page-wrap">
     <router-view v-slot="{ Component }">
       <keep-alive :include="['WordMemory', 'NoteExport', 'MathAI', 'MistakesBook']">
         <component :is="Component" />
       </keep-alive>
     </router-view>
+    </div>
   </div>
 </template>
 
@@ -144,30 +146,37 @@ function doLogout() {
   padding: 0;
   box-sizing: border-box;
 }
-#app-root {
-  min-height: 100vh;
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #2c3e50;
+  background: #f0f2f5;
 }
+#app-root { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.page-wrap { flex: 1; overflow: auto; min-height: 0; }
 .app-nav {
   display: flex;
-  gap: 16px;
-  padding: 10px 20px;
-  background: #f5f7fa;
-  border-bottom: 1px solid #e0e0e0;
+  gap: 4px;
+  padding: 8px 20px;
+  background: #fff;
+  border-bottom: 1px solid #ebeef5;
   justify-content: center;
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
 }
 .app-nav a {
   text-decoration: none;
   color: #606266;
-  font-size: 14px;
-  padding: 6px 16px;
-  border-radius: 4px;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 6px;
   transition: all 0.2s;
+  font-weight: 500;
 }
 .app-nav a:hover { background: #ecf5ff; color: #409eff; }
-.app-nav a.router-link-active { background: #409eff; color: #fff; }
+.app-nav a.router-link-active { background: #409eff; color: #fff; box-shadow: 0 2px 8px rgba(64,158,255,.3); }
 .app-nav .nav-right {
   margin-left: auto;
   display: flex;

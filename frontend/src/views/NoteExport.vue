@@ -11,6 +11,7 @@
         <div v-for="note in notes" :key="note.id" class="item"
              :class="{ active: note.id === currentId }"
              @click="switchNote(note)">
+          <span class="item-dot" :style="{ background: noteColor(note.id) }"></span>
           <span class="item-title">{{ note.title }}</span>
           <span class="del" @click.stop="deleteNote(note.id)">×</span>
         </div>
@@ -58,7 +59,16 @@
              :class="{ 'clear-bg': c.bg === 'transparent' }"
              :style="{ background: c.display }" @mousedown.prevent="execFormat('backColor', c.bg)"></div>
       </div>
-
+      <div class="sub-color-bar" :class="{ show: activeColorBar === 'grid' }">
+        <span>网格颜色：</span>
+        <div class="color-item" :class="{ active: !gridColor }" style="background:#c8c8c8" @mousedown.prevent="gridColor = null; clearGridColor()" title="默认"></div>
+        <span class="color-sep"></span>
+        <template v-for="(c, i) in gridColors" :key="c">
+          <span v-if="i === 6 || i === 12" class="color-sep"></span>
+          <div class="color-item" :class="{ active: gridColor === c }"
+               :style="{ background: c }" @mousedown.prevent="gridColor = c; applyGridColor()"></div>
+        </template>
+      </div>
       <!-- 顶部横排工具栏 -->
       <div class="toolbar-top">
         <div class="icon-btn" title="撤销 (Ctrl+Z)" @click="undo">
@@ -107,7 +117,7 @@
           <svg v-bind="svg24" v-html="I.eraser"></svg>
         </div>
         <div class="tb-sep"></div>
-        <div class="icon-btn" title="导出 PDF" @click="exportPdf">
+        <div class="icon-btn" title="导出 PDF" @click="openPdfDialog">
           <svg v-bind="svg1024" v-html="I.exportPdf"></svg>
         </div>
         <div class="icon-btn" title="导出 Word" @click="exportWord">
@@ -130,16 +140,61 @@
         <div class="icon-btn" :title="'工程方格纸 - ' + (!engGridMode ? '点击:实线' : engGridMode === 'solid' ? '当前:实线 | 点击:虚线' : '当前:虚线 | 点击:关闭')" @click="toggleEngGrid" :class="{ active: engGridMode }">
           <svg v-bind="svg1024" v-html="I.engGrid"></svg>
         </div>
+        <div class="tb-sep"></div>
+        <div class="icon-btn" title="网格颜色" @click="toggleColorBar('grid')" :class="{ active: activeColorBar === 'grid' }" :style="{ color: gridColor || '#888' }">
+          <svg v-bind="svg24" v-html="I.palette"></svg>
+        </div>
       </div>
 
       <!-- 编辑器纸板 -->
       <div class="editor-wrap">
         <div id="editor" ref="editorRef" contenteditable="true"
-             @input="onEditorInput" @paste="onPaste" @keydown="onEditorKeydown" @click="onEditorClick" @mousedown="onEditorMousedown"
+             @input="onEditorInput" @paste="onPaste" @keydown="onEditorKeydown" @click="onEditorClick" @mousedown="onEditorMousedown" @mouseover="onEditorMouseover"
              :class="{ 'is-empty': isEditorEmpty, 'show-all': showAnswer, 'grid-paper': gridMode, 'dot-grid': dotGridMode, 'iso-grid': isoGridMode, 'eng-grid-solid': engGridMode === 'solid', 'eng-grid-dashed': engGridMode === 'dashed' }"
              :style="{ '--answer-color': answerColor }"></div>
       </div>
 
+    </div>
+
+    <!-- PDF 导出设置对话框 -->
+    <div class="pdf-dialog-overlay" v-if="pdfDialogVisible" @click.self="pdfDialogVisible = false">
+      <div class="pdf-dialog">
+        <div class="pdf-dlg-title">导出 PDF</div>
+
+        <div class="pdf-dlg-group">
+          <div class="pdf-dlg-label">钉装边距</div>
+          <div class="pdf-dlg-radios">
+            <label :class="{ active: bindSide === 'none' }"><input type="radio" v-model="bindSide" value="none" /> 无</label>
+            <label :class="{ active: bindSide === 'left' }"><input type="radio" v-model="bindSide" value="left" /> 左侧装订</label>
+            <label :class="{ active: bindSide === 'right' }"><input type="radio" v-model="bindSide" value="right" /> 右侧装订</label>
+          </div>
+          <div class="pdf-dlg-hint" v-if="bindSide === 'left'">奇数页左边多留空，偶数页右边多留空（纸张左侧打孔）</div>
+          <div class="pdf-dlg-hint" v-if="bindSide === 'right'">奇数页右边多留空，偶数页左边多留空（纸张右侧打孔）</div>
+        </div>
+
+        <div class="pdf-dlg-group" v-if="bindSide !== 'none'">
+          <div class="pdf-dlg-label">装订边距宽度</div>
+          <select v-model="bindWidth" class="pdf-dlg-select">
+            <option :value="15">15mm · 较窄</option>
+            <option :value="20">20mm · 标准</option>
+            <option :value="25">25mm · 较宽</option>
+            <option :value="30">30mm · 活页本</option>
+          </select>
+        </div>
+
+        <div class="pdf-dlg-group">
+          <label class="pdf-dlg-check">
+            <input type="checkbox" v-model="autoBlank" />
+            <span>奇偶页补白（奇数页时自动补一页带模板的空白页）</span>
+          </label>
+          <div class="pdf-dlg-hint">双面打印时，最后一页是带网格模板的空白页，拿下来就能继续手写</div>
+        </div>
+
+        <div class="pdf-dlg-actions">
+          <button class="pdf-dlg-btn pdf-dlg-btn-cancel" @click="pdfDialogVisible = false">取消</button>
+          <button class="pdf-dlg-btn pdf-dlg-btn-ok" @click="doExportPdf">导出 PDF</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -194,24 +249,36 @@ const gridMode = ref(false)
 const dotGridMode = ref(false)
 const isoGridMode = ref(false)
 const engGridMode = ref(false)
+function syncGridBg() {
+  const anyOn = gridMode.value || dotGridMode.value || isoGridMode.value || engGridMode.value
+  if (!anyOn) { clearGridColor(); return }
+  if (gridColor.value) applyGridColor()
+  else clearGridColor()
+}
 function toggleGrid() {
   gridMode.value = !gridMode.value
   if (gridMode.value) { dotGridMode.value = false; isoGridMode.value = false; engGridMode.value = false }
+  syncGridBg()
 }
 function toggleDotGrid() {
   dotGridMode.value = !dotGridMode.value
   if (dotGridMode.value) { gridMode.value = false; isoGridMode.value = false; engGridMode.value = false }
+  syncGridBg()
 }
 function toggleIsoGrid() {
   isoGridMode.value = !isoGridMode.value
   if (isoGridMode.value) { gridMode.value = false; dotGridMode.value = false; engGridMode.value = false }
+  syncGridBg()
 }
 function toggleEngGrid() {
   if (!engGridMode.value) engGridMode.value = 'solid'
   else if (engGridMode.value === 'solid') engGridMode.value = 'dashed'
   else engGridMode.value = false
   if (engGridMode.value) { gridMode.value = false; dotGridMode.value = false; isoGridMode.value = false }
+  syncGridBg()
 }
+const NOTE_COLORS = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399', '#5470c6', '#91cc75', '#fc8452', '#ee6666', '#73c0de']
+function noteColor(id) { return NOTE_COLORS[id % NOTE_COLORS.length] }
 const currentNote = computed(() => notes.value.find(n => n.id === currentId.value))
 const currentTitle = computed(() => currentNote.value?.title || '未命名笔记')
 
@@ -233,7 +300,7 @@ function onEditorInput() {
     editorRef.value.innerHTML = ''
   }
 }
-const mdPattern = /(^#{1,6}\s)|(\*\*|__)|(^[\-\*\+]\s)|(^\d+\.\s)|(```)|(\[.*?\]\(.*?\))|(`[^`]+`)/m
+const mdPattern = /(^#{1,6}\s)|(\*\*|__)|(^[\-\*\+]\s)|(^\d+\.\s)|(```)|(\[.*?\]\(.*?\))|(`[^`]+`)|(^\|)|(^>\s)/m
 const mathPattern = /(?<!\$)\$(?!\$)[^$\n]+?\$(?!\$)|(?<!\$)\$\$[\s\S]*?\$\$/
 
 function looksLikeMarkdown(text) {
@@ -305,9 +372,21 @@ function onPaste(e) {
   const text = (e.clipboardData || window.clipboardData).getData('text/plain')
   if (looksLikeMarkdown(text) || hasMath(text)) {
     try {
-      let html = marked.parse(text)
+      let html = marked.parse(text.trimEnd()).replace(/>\n+</g, '><').trim()
       if (hasMath(text)) html = renderMath(html)
-      document.execCommand('insertHTML', false, html)
+      const sel = window.getSelection()
+      if (sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0)
+        range.deleteContents()
+        const frag = range.createContextualFragment(html)
+        range.insertNode(frag)
+        range.collapse(false)
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
+      updateIsEmpty()
+      syncEditorToNote()
+      saveNotes()
     } catch (err) {
       document.execCommand('insertText', false, text)
     }
@@ -452,6 +531,38 @@ function makeBlank() {
   showToast('挖空成功')
 }
 
+let hoveredBlank = null
+
+function onEditorMouseover(e) {
+  const blank = e.target.closest('.blank')
+  if (blank && editorRef.value?.contains(blank)) {
+    if (hoveredBlank && hoveredBlank !== blank) hoveredBlank.style.outline = ''
+    hoveredBlank = blank
+    blank.style.outline = '1px dashed #409eff'
+  } else if (hoveredBlank) {
+    hoveredBlank.style.outline = ''
+    hoveredBlank = null
+  }
+}
+
+function unblank() {
+  let blank = hoveredBlank
+  if (!blank) {
+    const sel = window.getSelection()
+    if (!sel.rangeCount) return
+    let node = sel.getRangeAt(0).startContainer
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+    blank = node?.closest('.blank')
+  }
+  if (!blank || !editorRef.value?.contains(blank)) { showToast('请先将鼠标悬停在挖空文字上'); return }
+  blank.style.outline = ''
+  hoveredBlank = null
+  blank.replaceWith(...blank.childNodes)
+  syncEditorToNote()
+  saveNotes()
+  showToast('已恢复原样')
+}
+
 // ---- 显示/隐藏答案 ----
 const showAnswer = ref(false)
 function toggleAnswer() {
@@ -464,6 +575,46 @@ const answerColor = ref('#d93025')
 const activeColorBar = ref(null)
 function toggleColorBar(name) {
   activeColorBar.value = activeColorBar.value === name ? null : name
+}
+
+const gridColor = ref(null)
+const gridColors = ['#e8e8e8', '#e2e0e8', '#e0e4e8', '#e8e4e0', '#e4e8e0', '#f0e8e8', '#c8c8c8', '#b0a0c0', '#a0b0c0', '#c0b0a0', '#a0c0a0', '#d0a0a0', '#999999', '#8877aa', '#7799aa', '#aa8877', '#77aa77', '#aa7777']
+
+const pdfDialogVisible = ref(false)
+const bindSide = ref('none')
+const bindWidth = ref(20)
+const autoBlank = ref(true)
+
+function openPdfDialog() {
+  pdfDialogVisible.value = true
+}
+
+function doExportPdf() {
+  pdfDialogVisible.value = false
+  nextTick(() => exportPdf())
+}
+
+function applyGridColor() {
+  const c = gridColor.value
+  const el = editorRef.value
+  if (!el || !c) return
+  if (!gridMode.value && !dotGridMode.value && !isoGridMode.value && !engGridMode.value) return
+  if (gridMode.value) {
+    el.style.backgroundImage = `linear-gradient(to right, ${c} 1px, transparent 1px), linear-gradient(to bottom, ${c} 1px, transparent 1px)`
+  } else if (dotGridMode.value) {
+    el.style.backgroundImage = `radial-gradient(circle, ${c} 1px, transparent 1px)`
+  } else if (isoGridMode.value) {
+    el.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="23"><g stroke="${c}" stroke-width="0.5"><line x1="0" y1="0" x2="0" y2="23"/><line x1="20" y1="0" x2="20" y2="23"/><line x1="0" y1="0" x2="40" y2="23"/><line x1="40" y1="0" x2="0" y2="23"/></g></svg>`)}")`
+  } else if (engGridMode.value) {
+    const d = engGridMode.value === 'dashed' ? ' stroke-dasharray="4 3"' : ''
+    const r = parseInt(c.slice(1,3), 16), g = parseInt(c.slice(3,5), 16), b = parseInt(c.slice(5,7), 16)
+    const major = '#' + [r,g,b].map(v => Math.max(0, v - 50).toString(16).padStart(2,'0')).join('')
+    el.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><g><path d="M4,0 L4,40 M8,0 L8,40 M12,0 L12,40 M16,0 L16,40 M20,0 L20,40 M24,0 L24,40 M28,0 L28,40 M32,0 L32,40 M36,0 L36,40 M0,4 L40,4 M0,8 L40,8 M0,12 L40,12 M0,16 L40,16 M0,20 L40,20 M0,24 L40,24 M0,28 L40,28 M0,32 L40,32 M0,36 L40,36" stroke="${c}" stroke-width="0.5"/><path d="M0,0 L0,40 M0,0 L40,0" stroke="${major}" stroke-width="1"${d}/></g></svg>`)}")`
+  }
+}
+
+function clearGridColor() {
+  if (editorRef.value) editorRef.value.style.removeProperty('background-image')
 }
 
 const blankColors = ['#d93025', '#1976d2', '#388e3c', '#f57c00', '#7b1fa2', '#424242']
@@ -598,6 +749,13 @@ function onEditorClick(e) {
     e.preventDefault()
     window.open(e.target.href, '_blank')
   }
+  // click on image: toggle selected, deselect others
+  const wrap = e.target.closest('.img-wrap')
+  editorRef.value?.querySelectorAll('.img-wrap.img-selected').forEach(el => {
+    if (el !== wrap) el.classList.remove('img-selected')
+  })
+  if (wrap) { wrap.classList.toggle('img-selected'); e.preventDefault() }
+  else { editorRef.value?.querySelectorAll('.img-wrap.img-selected').forEach(el => el.classList.remove('img-selected')) }
 }
 
 function scrollCursorIntoView() {
@@ -683,6 +841,10 @@ function onEditorKeydown(e) {
     saveNotes()
     return
   }
+  if ((e.key === 'Backspace' || e.key === 'Delete') && !e.ctrlKey) {
+    const sel = editorRef.value?.querySelector('.img-wrap.img-selected')
+    if (sel) { e.preventDefault(); sel.remove(); syncEditorToNote(); saveNotes(); return }
+  }
   if (e.altKey && e.key === 'ArrowUp') {
     e.preventDefault()
     moveBlock('up')
@@ -696,6 +858,11 @@ function onEditorKeydown(e) {
   if (e.altKey && e.key.toLowerCase() === 'q') {
     e.preventDefault()
     makeBlank()
+    return
+  }
+  if (e.altKey && e.key.toLowerCase() === 'w') {
+    e.preventDefault()
+    unblank()
     return
   }
   if (e.key === 'Backspace') {
@@ -793,7 +960,10 @@ async function exportPdf() {
     const pageW = pdf.internal.pageSize.getWidth()
     const pageH = pdf.internal.pageSize.getHeight()
     const margin = 15
-    const pdfW = pageW - margin * 2
+    const bindMargin = bindSide.value !== 'none' ? bindWidth.value : 0
+    let marginL = margin + (bindSide.value === 'left' ? bindMargin : 0)
+    let marginR = margin + (bindSide.value === 'right' ? bindMargin : 0)
+    const pdfW = pageW - marginL - marginR
     const pdfH = pageH - margin * 2
     const contentWidth = el.clientWidth
     const pageContentH = contentWidth * (pdfH / pdfW)
@@ -826,8 +996,11 @@ async function exportPdf() {
     function drawPageBackground() {
       pdf.setFillColor(253, 253, 253)
       pdf.rect(0, 0, pageW, pageH, 'F')
+      const gc = gridColor.value
+      function h2rgb(h) { return { r: parseInt(h.slice(1,3),16), g: parseInt(h.slice(3,5),16), b: parseInt(h.slice(5,7),16) } }
       if (gridMode.value) {
-        pdf.setDrawColor(210, 210, 210)
+        const {r,g,b} = gc ? h2rgb(gc) : {r:210,g:210,b:210}
+        pdf.setDrawColor(r, g, b)
         pdf.setLineWidth(0.2)
         for (let x = 0; x <= pageW; x += 5) {
           pdf.line(x, 0, x, pageH)
@@ -836,44 +1009,44 @@ async function exportPdf() {
           pdf.line(0, y, pageW, y)
         }
       } else if (dotGridMode.value) {
-        pdf.setFillColor(208, 208, 208)
+        const {r,g,b} = gc ? h2rgb(gc) : {r:208,g:208,b:208}
+        pdf.setFillColor(r, g, b)
         for (let x = 0; x <= pageW; x += 5) {
           for (let y = 0; y <= pageH; y += 5) {
             pdf.circle(x, y, 0.25, 'F')
           }
         }
       } else if (isoGridMode.value) {
-        pdf.setDrawColor(210, 210, 210)
+        const {r,g,b} = gc ? h2rgb(gc) : {r:210,g:210,b:210}
+        pdf.setDrawColor(r, g, b)
         pdf.setLineWidth(0.2)
-        const c = Math.sqrt(3) / 2 // ≈ 0.866
+        const cs = Math.sqrt(3) / 2
         const step = 5
-        // vertical lines
         for (let x = 0; x <= pageW; x += step) {
           pdf.line(x, 0, x, pageH)
         }
-        // 30° lines: normal at 120°, equation -0.5*x + c*y = k
         function drawLine(k, sign) {
           const pts = []
-          const y0 = k / c
+          const y0 = k / cs
           if (y0 >= 0 && y0 <= pageH) pts.push([0, y0])
-          const yW = (k + sign * 0.5 * pageW) / c
+          const yW = (k + sign * 0.5 * pageW) / cs
           if (yW >= 0 && yW <= pageH) pts.push([pageW, yW])
           const xT = -sign * 2 * k
           if (xT >= 0 && xT <= pageW) pts.push([xT, 0])
-          const xB = sign * 2 * (c * pageH - k)
+          const xB = sign * 2 * (cs * pageH - k)
           if (xB >= 0 && xB <= pageW) pts.push([xB, pageH])
           if (pts.length >= 2) pdf.line(pts[0][0], pts[0][1], pts[1][0], pts[1][1])
         }
-        // 30° lines (sign = +1 for the correction: at x=0, need positive k range)
-        for (let k = -0.5 * pageW; k <= c * pageH; k += step) {
+        for (let k = -0.5 * pageW; k <= cs * pageH; k += step) {
           drawLine(k, 1)
         }
-        // 150° lines (sign = -1)
-        for (let k = 0; k <= 0.5 * pageW + c * pageH; k += step) {
+        for (let k = 0; k <= 0.5 * pageW + cs * pageH; k += step) {
           drawLine(k, -1)
         }
       } else if (engGridMode.value) {
-        pdf.setDrawColor(224, 224, 224)
+        const {r:r1,g:g1,b:b1} = gc ? h2rgb(gc) : {r:224,g:224,b:224}
+        const {r:r2,g:g2,b:b2} = gc ? {r:Math.max(0,r1-50),g:Math.max(0,g1-50),b:Math.max(0,b1-50)} : {r:153,g:153,b:153}
+        pdf.setDrawColor(r1, g1, b1)
         pdf.setLineWidth(0.1)
         for (let x = 0; x <= pageW; x += 1) {
           pdf.line(x, 0, x, pageH)
@@ -881,7 +1054,7 @@ async function exportPdf() {
         for (let y = 0; y <= pageH; y += 1) {
           pdf.line(0, y, pageW, y)
         }
-        pdf.setDrawColor(153, 153, 153)
+        pdf.setDrawColor(r2, g2, b2)
         pdf.setLineWidth(0.2)
         if (engGridMode.value === 'dashed') pdf.setLineDash([1, 0.75], 0)
         for (let x = 0; x <= pageW; x += 10) {
@@ -894,9 +1067,27 @@ async function exportPdf() {
       }
     }
 
+    // auto-fill blank page
+    if (autoBlank.value && pageClones.length % 2 === 1 && hasBgPattern) {
+      pageClones.push(document.createElement('div'))
+    }
+
     for (let p = 0; p < pageClones.length; p++) {
       if (p > 0) pdf.addPage()
       if (hasBgPattern) drawPageBackground()
+
+      // alternating binding margins
+      const isOdd = p % 2 === 0
+      let curML = margin, curMR = margin
+      if (bindSide.value === 'left') {
+        if (isOdd) curML = margin + bindMargin
+        else curMR = margin + bindMargin
+      } else if (bindSide.value === 'right') {
+        if (isOdd) curMR = margin + bindMargin
+        else curML = margin + bindMargin
+      }
+      const curPW = pageW - curML - curMR
+      const curPH = pageH - margin * 2
 
       const pageEl = pageClones[p]
       pageEl.style.cssText = baseStyle
@@ -920,8 +1111,8 @@ async function exportPdf() {
       const canvas = await html2canvas(pageEl, { scale: 2, useCORS: true, backgroundColor: null })
       document.body.removeChild(pageEl)
 
-      const scale = Math.min(pdfW / canvas.width, pdfH / canvas.height)
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin,
+      const scale = Math.min(curPW / canvas.width, curPH / canvas.height)
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', curML, margin,
         canvas.width * scale, canvas.height * scale)
     }
 
@@ -996,24 +1187,24 @@ onUnmounted(() => {
 
 .note-app {
   display: flex;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
-  background: #e2e2e2;
+  background: #f0f2f5;
   padding: 10px;
+  gap: 8px;
 }
 
 /* ---- Left: note list ---- */
 .left {
-  width: 220px;
+  width: 230px;
   flex-shrink: 0;
-  padding: 14px 10px;
+  padding: 16px 10px;
   display: flex;
   flex-direction: column;
   background: #fff;
-  border: 1px solid #e1e4e8;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.06);
-  transition: width 0.2s, padding 0.2s, box-shadow 0.2s, min-width 0.2s;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  transition: width 0.2s, padding 0.2s, min-width 0.2s;
   overflow: hidden;
   position: relative;
 }
@@ -1043,28 +1234,30 @@ onUnmounted(() => {
 
 .list-header {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 10px;
+  padding: 0 4px;
 }
 .list-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #1a1a1a;
-  text-align: center;
 }
 .btn-new {
-  padding: 6px 0;
+  padding: 4px 12px;
   background: #409eff;
   color: #fff;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
   user-select: none;
-  transition: background 0.15s;
+  transition: all 0.15s;
+  white-space: nowrap;
 }
-.btn-new:hover { background: #337ecc; }
+.btn-new:hover { background: #337ecc; box-shadow: 0 2px 8px rgba(64,158,255,.3); }
 
 .settings-btn {
   width: 32px; height: 32px;
@@ -1107,22 +1300,27 @@ onUnmounted(() => {
 #noteList::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 2px; }
 
 .item {
-  padding: 7px 8px;
+  padding: 8px 10px;
   margin-bottom: 2px;
-  border-radius: 4px;
+  border-radius: 8px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
   cursor: pointer;
   user-select: none;
-  font-size: 12px;
+  font-size: 13px;
   color: #555;
   transition: all 0.15s;
 }
 .item:hover { background: #f5f7fa; }
 .item.active { background: #e8f4ff; color: #409eff; font-weight: 600; }
+.item-dot {
+  width: 8px; height: 8px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
 .item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.del { color: #ccc; cursor: pointer; font-size: 14px; flex-shrink: 0; margin-left: 4px; opacity: 0; transition: all 0.15s; }
+.del { color: #ccc; cursor: pointer; font-size: 14px; flex-shrink: 0; opacity: 0; transition: all 0.15s; }
 .item:hover .del { opacity: 1; }
 .del:hover { color: #f56c6c; }
 
@@ -1177,16 +1375,16 @@ onUnmounted(() => {
 }
 
 /* ---- Top toolbar ---- */
+.color-sep { width: 1px; height: 18px; background: #d0d0d0; flex-shrink: 0; margin: 0 2px; }
+
 .toolbar-top {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   align-items: center;
-  padding: 6px 10px;
-  background: #fafbfc;
-  border: 1px solid #e1e4e8;
-  border-bottom: 1px solid #d0d5dd;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  padding: 7px 12px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
@@ -1197,27 +1395,27 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
-  border: 1px solid #e2e6ea;
-  border-radius: 5px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
   cursor: pointer;
   user-select: none;
   transition: all 0.15s;
-  color: #555;
+  color: #666;
   flex-shrink: 0;
 }
-.icon-btn:hover { background: #e8f0fe; color: #1a73e8; border-color: #c4d7f2; }
+.icon-btn:hover { background: #f0f3f8; color: #409eff; }
 .icon-btn:active { transform: scale(0.95); }
-.icon-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+.icon-btn.active { background: #409eff; color: #fff; }
 .icon-btn svg { width: 18px; height: 18px; display: block; }
 #mkBlank svg { width: 20px; height: 20px; }
 
 .tb-sep {
   width: 1px;
-  height: 20px;
-  background: #d0d0d0;
+  height: 18px;
+  background: #e8eaed;
   flex-shrink: 0;
-  margin: 0 2px;
+  margin: 0 3px;
 }
 
 /* ---- Editor ---- */
@@ -1225,25 +1423,26 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   overflow: hidden;
-  border: 1px solid #e1e4e8;
-  border-radius: 6px;
-  box-shadow: 0 4px 20px rgba(0,0,0,.1), 0 1px 3px rgba(0,0,0,.06);
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 16px rgba(0,0,0,.08);
 }
 
 #editor {
   flex: 1;
   border: none;
-  padding: 15mm 15mm;
-  font-size: 16px;
-  line-height: 1.8;
+  padding: 18mm 20mm;
+  font-size: 15px;
+  line-height: 1.9;
   overflow-y: auto;
   overflow-x: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
   word-break: break-all;
   outline: none;
-  background: #fefefe;
-  border-radius: 5px;
+  background: #fff;
+  border-radius: 10px;
+  color: #2c3e50;
 }
 #editor::-webkit-scrollbar { width: 6px; }
 #editor::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 3px; }
@@ -1283,6 +1482,7 @@ onUnmounted(() => {
   background-size: 40px 40px;
   background-position: 0 0;
 }
+
 #editor :deep(a) { color: #409eff; text-decoration: underline; cursor: pointer; }
 #editor :deep(a):hover { color: #337ecc; }
 #editor :deep(.img-wrap) {
@@ -1294,6 +1494,11 @@ onUnmounted(() => {
   border-radius: 4px;
   vertical-align: bottom;
   font-size: 0; line-height: 0;
+}
+#editor :deep(.img-wrap.img-selected) {
+  outline: 2px solid #409eff;
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 #editor :deep(.img-wrap img) {
   display: block;
@@ -1338,6 +1543,9 @@ onUnmounted(() => {
 #editor :deep(h6) { font-size: 14px; font-weight: 600; margin: 6px 0 2px; color: #555; }
 #editor :deep(ol), #editor :deep(ul) { padding-left: 1.5em; margin: 4px 0; }
 #editor :deep(li) { margin-bottom: 2px; }
+#editor :deep(table) { border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+#editor :deep(th) { border: 1px solid #ccc; padding: 6px 10px; background: #f5f7fa; text-align: left; font-weight: 600; min-width: 60px; }
+#editor :deep(td) { border: 1px solid #ccc; padding: 6px 10px; min-width: 60px; }
 
 /* ---- Toast ---- */
 .toast {
@@ -1382,4 +1590,26 @@ onUnmounted(() => {
 .cover-board .close-btn { color: red; cursor: pointer; font-weight: bold; }
 .cover-board .opacity-control { position: absolute; bottom: 10px; left: 10px; right: 10px; display: flex; align-items: center; gap: 5px; font-size: 12px; color: #fff; background: rgba(0,0,0,0.3); padding: 3px; border-radius: 3px; }
 .cover-board .opacity-slider { flex: 1; height: 8px; cursor: pointer; }
+
+/* ---- PDF dialog ---- */
+.pdf-dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 400; display: flex; align-items: center; justify-content: center; }
+.pdf-dialog { width: 420px; background: #fff; border-radius: 12px; padding: 28px 24px 20px; box-shadow: 0 12px 40px rgba(0,0,0,.2); }
+.pdf-dlg-title { font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 20px; }
+.pdf-dlg-group { margin-bottom: 16px; }
+.pdf-dlg-label { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 8px; }
+.pdf-dlg-radios { display: flex; flex-direction: column; gap: 6px; }
+.pdf-dlg-radios label { font-size: 13px; color: #555; cursor: pointer; padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 6px; transition: all .15s; display: flex; align-items: center; gap: 6px; }
+.pdf-dlg-radios label:hover { border-color: #409eff; }
+.pdf-dlg-radios label.active { border-color: #409eff; background: #ecf5ff; color: #409eff; }
+.pdf-dlg-radios input { display: none; }
+.pdf-dlg-hint { font-size: 11px; color: #999; margin-top: 6px; line-height: 1.5; }
+.pdf-dlg-select { width: 100%; padding: 8px 10px; font-size: 13px; border: 1px solid #e0e0e0; border-radius: 6px; outline: none; background: #fff; }
+.pdf-dlg-check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #333; cursor: pointer; }
+.pdf-dlg-check input { margin-top: 2px; }
+.pdf-dlg-actions { display: flex; gap: 10px; margin-top: 20px; }
+.pdf-dlg-btn { flex: 1; padding: 10px 0; font-size: 14px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; transition: all .15s; }
+.pdf-dlg-btn-cancel { background: #f5f5f5; color: #666; }
+.pdf-dlg-btn-cancel:hover { background: #e8e8e8; }
+.pdf-dlg-btn-ok { background: #409eff; color: #fff; }
+.pdf-dlg-btn-ok:hover { background: #337ecc; }
 </style>
