@@ -1111,7 +1111,7 @@ async function exportPdf() {
       })
 
       await new Promise(r => requestAnimationFrame(r))
-      const canvas = await html2canvas(pageEl, { scale: 2, useCORS: true, backgroundColor: null })
+      const canvas = await html2canvas(pageEl, { scale: 1.5, useCORS: true, backgroundColor: null })
       document.body.removeChild(pageEl)
 
       const scale = Math.min(curPW / canvas.width, curPH / canvas.height)
