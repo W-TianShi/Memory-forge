@@ -11,7 +11,7 @@ defineProps({
 const emit = defineEmits([
   'searchAll', 'toggleWordHidden', 'togglePhoneticHidden', 'toggleMeaningHidden',
   'resetAll', 'addWord', 'removeLastWord', 'batchImport', 'exportPdf',
-  'toggleTimestamp'
+  'toggleTimestamp', 'toggleColumns'
 ])
 </script>
 
@@ -39,6 +39,10 @@ const emit = defineEmits([
       </div>
       <div class="icon-btn" title="删除单词框" @click="emit('removeLastWord')">
         <SvgIcon name="delWordBox" />
+      </div>
+      <div class="bar-sep"></div>
+      <div class="icon-btn" title="列数设置" @click="emit('toggleColumns')">
+        <SvgIcon name="columns" />
       </div>
       <div class="bar-sep"></div>
       <div class="icon-btn" title="时间戳" @click="emit('toggleTimestamp')" :class="{ active: timestampVisible }">

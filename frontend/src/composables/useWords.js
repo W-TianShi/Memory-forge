@@ -1,9 +1,9 @@
 import { ref, computed, watch, nextTick } from 'vue'
 
-const PAGE_SIZE = 50
+const ROWS_PER_PAGE = 25
 const MAX_UNDO = 50
 
-const DEFAULT_COUNT = 20
+const DEFAULT_COUNT = 22
 
 function createEmptyWords(count) {
   return Array.from({ length: count }, (_, i) => ({
@@ -16,8 +16,10 @@ export function useWords(contentRef) {
   const words = ref(createEmptyWords(DEFAULT_COUNT))
   const currentPage = ref(0)
   const undoStack = ref([])
+  const columnCount = ref(2)
 
-  const totalPages = computed(() => Math.max(1, Math.ceil(words.value.length / PAGE_SIZE)))
+  const pageSize = computed(() => columnCount.value * ROWS_PER_PAGE)
+  const totalPages = computed(() => Math.max(1, Math.ceil(words.value.length / pageSize.value)))
 
   watch(totalPages, () => {
     if (currentPage.value < 0) currentPage.value = 0
@@ -27,19 +29,21 @@ export function useWords(contentRef) {
   })
 
   const pageWords = computed(() => {
-    const start = currentPage.value * PAGE_SIZE
-    return words.value.slice(start, start + PAGE_SIZE)
+    const start = currentPage.value * pageSize.value
+    return words.value.slice(start, start + pageSize.value)
   })
 
   const columns = computed(() => {
-    const left = pageWords.value.filter(w => w.col === 0)
-    const right = pageWords.value.filter(w => w.col === 1)
-    return [left, right]
+    const cols = []
+    for (let i = 0; i < columnCount.value; i++) {
+      cols.push(pageWords.value.filter(w => w.col === i))
+    }
+    return cols
   })
 
   function nextCol() {
     if (words.value.length === 0) return 0
-    return words.value[words.value.length - 1].col === 0 ? 1 : 0
+    return (words.value[words.value.length - 1].col + 1) % columnCount.value
   }
 
   function globalIndex(item) {
@@ -103,7 +107,7 @@ export function useWords(contentRef) {
     pushUndo()
     const item = { word: '', phonetic: '', meaning: '', originalIndex: Date.now(), col: nextCol() }
     words.value.push(item)
-    const newPage = Math.floor((words.value.length - 1) / PAGE_SIZE)
+    const newPage = Math.floor((words.value.length - 1) / pageSize.value)
     if (newPage !== currentPage.value) currentPage.value = newPage
     nextTick(() => {
       const wordEls = contentRef?.value?.querySelectorAll('.word')
@@ -134,24 +138,24 @@ export function useWords(contentRef) {
   function addPage() {
     syncFromDOM()
     pushUndo()
-    const lastPageStart = (totalPages.value - 1) * PAGE_SIZE
+    const lastPageStart = (totalPages.value - 1) * pageSize.value
     const countOnLastPage = words.value.length - lastPageStart
-    const need = PAGE_SIZE - countOnLastPage
-    const toAdd = need > 0 ? need : PAGE_SIZE
+    const need = pageSize.value - countOnLastPage
+    const toAdd = need > 0 ? need : pageSize.value
     const col = nextCol()
     for (let i = 0; i < toAdd; i++) {
-      words.value.push({ word: '', phonetic: '', meaning: '', originalIndex: Date.now() + i, col: (col + i) % 2 })
+      words.value.push({ word: '', phonetic: '', meaning: '', originalIndex: Date.now() + i, col: (col + i) % columnCount.value })
     }
     currentPage.value = totalPages.value - 1
   }
 
   function deletePage() {
-    if (totalPages.value <= 1 && words.value.length <= PAGE_SIZE) return
+    if (totalPages.value <= 1 && words.value.length <= pageSize.value) return
     if (!confirm(`确定要删除第 ${currentPage.value + 1} 页的全部单词吗？此操作可撤销(Ctrl+Z)。`)) return
     syncFromDOM()
     pushUndo()
-    const start = currentPage.value * PAGE_SIZE
-    words.value.splice(start, PAGE_SIZE)
+    const start = currentPage.value * pageSize.value
+    words.value.splice(start, pageSize.value)
     if (currentPage.value >= totalPages.value) currentPage.value = Math.max(0, totalPages.value - 1)
   }
 
@@ -169,9 +173,9 @@ export function useWords(contentRef) {
     }
     const startCol = nextCol()
     for (let i = wi; i < wordList.length; i++) {
-      words.value.push({ word: wordList[i], phonetic: '', meaning: '', originalIndex: Date.now() + i, col: (startCol + (i - wi)) % 2 })
+      words.value.push({ word: wordList[i], phonetic: '', meaning: '', originalIndex: Date.now() + i, col: (startCol + (i - wi)) % columnCount.value })
     }
-    const newPage = Math.floor((words.value.length - 1) / PAGE_SIZE)
+    const newPage = Math.floor((words.value.length - 1) / pageSize.value)
     if (newPage !== currentPage.value) currentPage.value = newPage
   }
 
@@ -179,7 +183,7 @@ export function useWords(contentRef) {
   function nextPage() { if (currentPage.value < totalPages.value - 1) currentPage.value++ }
 
   return {
-    words, currentPage, totalPages, pageWords, columns, undoStack,
+    words, currentPage, totalPages, pageWords, columns, undoStack, columnCount,
     nextCol, globalIndex, displayIndex,
     pushUndo, undo, syncFromDOM,
     onWordKeydown, addWordEnd, removeWord, addWord, removeLastWord,

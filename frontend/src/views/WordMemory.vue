@@ -15,7 +15,7 @@ const contentRef = ref(null)
 
 const {
   words, currentPage, totalPages, pageWords, columns,
-  globalIndex, displayIndex, undoStack,
+  globalIndex, displayIndex, undoStack, columnCount,
   undo, syncFromDOM,
   onWordKeydown, addWord, removeLastWord,
   addPage, deletePage, prevPage, nextPage,
@@ -37,6 +37,12 @@ const todayStamp = computed(() => {
 function toggleTimestamp() {
   timestampVisible.value = !timestampVisible.value
   if (timestampVisible.value) timestampText.value = todayStamp.value
+}
+
+function toggleColumns() {
+  syncFromDOM()
+  columnCount.value = columnCount.value === 2 ? 3 : 2
+  words.value.forEach((w, i) => { w.col = i % columnCount.value })
 }
 
 function onWindowKeydown(e) {
@@ -189,6 +195,7 @@ onUnmounted(() => {
       @batchImport="batchImport"
       @exportPdf="exportPdf"
       @toggleTimestamp="toggleTimestamp"
+      @toggleColumns="toggleColumns"
     />
 
     <div class="main-area">
@@ -198,7 +205,7 @@ onUnmounted(() => {
         </div>
         <span class="progress-label">查询中...</span>
       </div>
-      <div class="content-area" ref="contentRef">
+      <div class="content-area" ref="contentRef" :class="{ 'cols-3': columnCount === 3 }">
         <div class="grid-container">
           <div class="table-column" v-for="(colData, colIdx) in columns" :key="colIdx">
             <div class="table-header">
@@ -326,6 +333,10 @@ onUnmounted(() => {
   grid-template-columns: 1fr 1fr;
   gap: 2mm;
 }
+.cols-3 .grid-container {
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1.5mm;
+}
 
 .table-column {
   display: flex;
@@ -356,6 +367,11 @@ onUnmounted(() => {
   height: 10.5mm;
   overflow: hidden;
 }
+
+.cols-3 .table-column { min-width: 0; }
+.cols-3 .table-header { grid-template-columns: 5mm 32mm 1fr; gap: 2px; padding: 1px 3px; font-size: 6.5pt; line-height: 1.2; }
+.cols-3 .table-row { grid-template-columns: 5mm 32mm 1fr; gap: 2px; padding: 2px 3px; }
+.cols-3 .word-section { font-size: 9pt; }
 
 .index {
   font-size: 8pt;
