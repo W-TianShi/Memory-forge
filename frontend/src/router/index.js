@@ -5,8 +5,8 @@ import MathAI from '../views/MathAI.vue'
 import MistakesBook from '../views/MistakesBook.vue'
 
 const routes = [
-  { path: '/', name: 'WordMemory', component: WordMemory },
-  { path: '/notes', name: 'NoteExport', component: NoteExport },
+  { path: '/', name: 'NoteExport', component: NoteExport },
+  { path: '/words', name: 'WordMemory', component: WordMemory },
   { path: '/math-ai', name: 'MathAI', component: MathAI },
   { path: '/mistakes', name: 'MistakesBook', component: MistakesBook },
 ]

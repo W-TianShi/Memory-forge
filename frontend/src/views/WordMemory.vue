@@ -2,7 +2,7 @@
 export default { name: 'WordMemory' }
 </script>
 <script setup>
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue'
 
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
@@ -27,6 +27,17 @@ const {
   toggleWordHidden, togglePhoneticHidden, toggleMeaningHidden,
   resetAll
 } = useVisibility(words)
+
+const timestampVisible = ref(false)
+const timestampText = ref('')
+const todayStamp = computed(() => {
+  const d = new Date()
+  return `${d.getMonth() + 1}.${d.getDate()}`
+})
+function toggleTimestamp() {
+  timestampVisible.value = !timestampVisible.value
+  if (timestampVisible.value) timestampText.value = todayStamp.value
+}
 
 function onWindowKeydown(e) {
   if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
@@ -167,6 +178,7 @@ onUnmounted(() => {
       :wordHidden="wordHidden"
       :phoneticHidden="phoneticHidden"
       :meaningHidden="meaningHidden"
+      :timestampVisible="timestampVisible"
       @searchAll="searchAll"
       @toggleWordHidden="toggleWordHidden"
       @togglePhoneticHidden="togglePhoneticHidden"
@@ -176,6 +188,7 @@ onUnmounted(() => {
       @removeLastWord="removeLastWord"
       @batchImport="batchImport"
       @exportPdf="exportPdf"
+      @toggleTimestamp="toggleTimestamp"
     />
 
     <div class="main-area">
@@ -209,6 +222,7 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
+        <div v-if="timestampVisible" class="timestamp-stamp" contenteditable="true" @input="e => timestampText = e.target.textContent">{{ timestampText }}</div>
       </div>
 
       <PageBar
@@ -238,6 +252,7 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
@@ -421,6 +436,19 @@ onUnmounted(() => {
 .btn-cancel:hover { background: #e0e0e0; }
 .btn-confirm { background: #409eff; color: #fff; }
 .btn-confirm:hover { background: #337ecc; }
+
+.timestamp-stamp {
+  text-align: right;
+  font-size: 12px;
+  color: #aaa;
+  font-family: 'Consolas', 'Courier New', monospace;
+  cursor: text;
+  user-select: none;
+  padding: 8px 4px 4px;
+  outline: none;
+}
+.timestamp-stamp:hover { background: #f0f0f0; }
+.timestamp-stamp:focus { background: #fff; color: #333; }
 
 @media print {
   .content-area { box-shadow: none; }

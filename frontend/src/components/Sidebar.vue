@@ -4,12 +4,14 @@ import SvgIcon from './SvgIcon.vue'
 defineProps({
   wordHidden: Boolean,
   phoneticHidden: Boolean,
-  meaningHidden: Number
+  meaningHidden: Number,
+  timestampVisible: Boolean
 })
 
 const emit = defineEmits([
   'searchAll', 'toggleWordHidden', 'togglePhoneticHidden', 'toggleMeaningHidden',
-  'resetAll', 'addWord', 'removeLastWord', 'batchImport', 'exportPdf'
+  'resetAll', 'addWord', 'removeLastWord', 'batchImport', 'exportPdf',
+  'toggleTimestamp'
 ])
 </script>
 
@@ -37,6 +39,10 @@ const emit = defineEmits([
       </div>
       <div class="icon-btn" title="删除单词框" @click="emit('removeLastWord')">
         <SvgIcon name="delWordBox" />
+      </div>
+      <div class="bar-sep"></div>
+      <div class="icon-btn" title="时间戳" @click="emit('toggleTimestamp')" :class="{ active: timestampVisible }">
+        <SvgIcon name="timestamp" />
       </div>
       <div class="bar-sep"></div>
       <div class="icon-btn" title="批量导入单词" @click="emit('batchImport')">

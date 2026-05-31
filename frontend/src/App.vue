@@ -1,8 +1,8 @@
 <template>
   <div id="app-root">
     <nav class="app-nav">
-      <router-link to="/">单词记忆</router-link>
-      <router-link to="/notes">笔记工具</router-link>
+      <router-link to="/">笔记工具</router-link>
+      <router-link to="/words">单词记忆</router-link>
       <router-link to="/math-ai">数学AI</router-link>
       <router-link to="/mistakes">错题整理</router-link>
       <div class="nav-right" id="nav-right">
@@ -49,7 +49,7 @@
 
     <div class="page-wrap">
     <router-view v-slot="{ Component }">
-      <keep-alive :include="['WordMemory', 'NoteExport', 'MathAI', 'MistakesBook']">
+      <keep-alive :include="['NoteExport', 'WordMemory', 'MathAI', 'MistakesBook']">
         <component :is="Component" />
       </keep-alive>
     </router-view>
