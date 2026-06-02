@@ -78,6 +78,7 @@ function doImport() {
   showImport.value = false
 }
 
+const leftCollapsed = ref(false)
 const searching = ref(false)
 const sheetList = ref([])
 const currentSheetId = ref(null)
@@ -244,7 +245,7 @@ onUnmounted(() => {
 
 <template>
   <div class="app-wrap">
-    <div class="left-panel">
+    <div class="left-panel" :class="{ collapsed: leftCollapsed }">
       <div class="left-panel-head">
         <button class="lph-btn" @click="newSheet">+ 新建</button>
         <button class="lph-btn-save" @click="doSaveSheet">保存</button>
@@ -260,23 +261,12 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <Sidebar
-      :wordHidden="wordHidden"
-      :phoneticHidden="phoneticHidden"
-      :meaningHidden="meaningHidden"
-      :timestampVisible="timestampVisible"
-      @searchAll="searchAll"
-      @toggleWordHidden="toggleWordHidden"
-      @togglePhoneticHidden="togglePhoneticHidden"
-      @toggleMeaningHidden="toggleMeaningHidden"
-      @resetAll="resetAll"
-      @addWord="addWord"
-      @removeLastWord="removeLastWord"
-      @batchImport="batchImport"
-      @exportPdf="exportPdf"
-      @toggleTimestamp="toggleTimestamp"
-      @toggleColumns="toggleColumns"
-    />
+    <div class="toggle-strip" :class="{ collapsed: leftCollapsed }" @click="leftCollapsed = !leftCollapsed" :title="leftCollapsed ? '展开列表' : '收起列表'">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline v-if="leftCollapsed" points="9,18 15,12 9,6"></polyline>
+        <polyline v-else points="15,18 9,12 15,6"></polyline>
+      </svg>
+    </div>
 
     <div class="main-area">
       <div v-if="searching" class="progress-wrap">
@@ -340,6 +330,24 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <Sidebar
+      :wordHidden="wordHidden"
+      :phoneticHidden="phoneticHidden"
+      :meaningHidden="meaningHidden"
+      :timestampVisible="timestampVisible"
+      @searchAll="searchAll"
+      @toggleWordHidden="toggleWordHidden"
+      @togglePhoneticHidden="togglePhoneticHidden"
+      @toggleMeaningHidden="toggleMeaningHidden"
+      @resetAll="resetAll"
+      @addWord="addWord"
+      @removeLastWord="removeLastWord"
+      @batchImport="batchImport"
+      @exportPdf="exportPdf"
+      @toggleTimestamp="toggleTimestamp"
+      @toggleColumns="toggleColumns"
+    />
+
   </div>
 </template>
 
@@ -350,25 +358,35 @@ onUnmounted(() => {
   box-sizing: border-box;
   font-family: "SimSun", "Microsoft YaHei", sans-serif;
 }
-
 .app-wrap {
-  min-height: 100vh;
-  background: #e8e8e8;
+  height: 100%;
+  background: #f0f2f5;
   display: flex;
   flex-direction: row;
   justify-content: center;
-  padding: 10px 10px 20px;
-  gap: 10px;
+  align-items: stretch;
+  padding: 10px;
+  gap: 0;
+  overflow: hidden;
+  scrollbar-width: none;
 }
+.app-wrap::-webkit-scrollbar { width: 0; height: 0; }
 
 .main-area {
+  width: calc(210mm - 2px);
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-bottom: 40px;
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(0,0,0,.1), 0 1px 4px rgba(0,0,0,.06);
 }
+.main-area::-webkit-scrollbar { width: 0; height: 0; }
 
 .progress-wrap {
-  width: 210mm;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -401,11 +419,9 @@ onUnmounted(() => {
 }
 
 .content-area {
-  width: 210mm;
+  width: 100%;
   min-height: 297mm;
   padding: 12mm 14mm;
-  background: #fff;
-  box-shadow: 0 2px 12px rgba(0,0,0,.15);
 }
 
 .grid-container {
@@ -428,11 +444,11 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 8mm 32mm 1fr;
   gap: 4px;
-  padding: 2px 5px;
+  padding: 3px 6px;
   background: #f0f5f9;
   border: 1px solid #ddd;
   font-size: 8pt;
-  font-weight: bold;
+  font-weight: 600;
   color: #555;
 }
 
@@ -441,7 +457,7 @@ onUnmounted(() => {
   grid-template-columns: 8mm 32mm 1fr;
   align-items: start;
   gap: 4px;
-  padding: 2px 5px;
+  padding: 3px 6px;
   border: 1px solid #ddd;
   border-top: none;
   height: 10.5mm;
@@ -535,41 +551,70 @@ onUnmounted(() => {
 
 .left-panel {
   position: fixed;
-  left: calc(50vw - 105mm - 190px);
-  top: 50%; transform: translateY(-50%);
-  width: 160px; max-height: 50vh;
-  background: #fff; border-radius: 10px;
+  left: 10px; top: calc(10px + 12mm); bottom: 10px;
+  width: calc(50vw - 105mm - 10px);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 10px;
   box-shadow: 0 2px 12px rgba(0,0,0,.06);
-  padding: 12px 10px; z-index: 10;
-  display: flex; flex-direction: column;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+  overflow: hidden;
+  z-index: 20;
 }
+.left-panel.collapsed { transform: translateX(calc(-100% - 20px)); opacity: 0; pointer-events: none; }
 .left-panel-head {
   display: flex; align-items: center; gap: 6px;
-  margin-bottom: 8px; padding: 0 4px;
+  margin-bottom: 10px; padding: 0 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .lph-btn {
-  padding: 3px 10px; font-size: 11px; border: none; border-radius: 4px;
+  padding: 4px 12px; font-size: 12px; font-weight: 500;
+  border: none; border-radius: 6px;
   background: #409eff; color: #fff; cursor: pointer;
+  transition: all 0.15s;
 }
-.lph-btn:hover { background: #337ecc; }
+.lph-btn:hover { background: #337ecc; box-shadow: 0 2px 8px rgba(64,158,255,.3); }
 .lph-btn-save {
-  padding: 3px 10px; font-size: 11px; border: 1px solid #409eff; border-radius: 4px;
+  padding: 4px 12px; font-size: 12px; border: 1px solid #409eff; border-radius: 6px;
   background: #fff; color: #409eff; cursor: pointer;
+  transition: all 0.15s;
 }
 .lph-btn-save:hover { background: #ecf5ff; }
 .left-panel-list { flex: 1; overflow-y: auto; }
+.left-panel-list::-webkit-scrollbar { width: 4px; }
+.left-panel-list::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 2px; }
 .left-panel-item {
-  padding: 6px 8px; margin-bottom: 1px; border-radius: 5px; cursor: pointer;
-  font-size: 12px; color: #555; display: flex; justify-content: space-between;
+  padding: 7px 8px; margin-bottom: 2px; border-radius: 6px; cursor: pointer;
+  font-size: 13px; color: #555; display: flex; align-items: center;
+  transition: all 0.15s;
 }
 .left-panel-item:hover { background: #f5f7fa; }
 .left-panel-item.active { background: #e8f4ff; color: #409eff; font-weight: 600; }
 .lpi-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.lpi-date { color: #ccc; font-size: 10px; margin-left: 4px; }
-.lpi-del { color: #ccc; font-size: 14px; flex-shrink: 0; margin-left: 4px; opacity: 0; transition: all .15s; cursor: pointer; }
+.lpi-date { color: #ccc; font-size: 10px; margin-left: 4px; flex-shrink: 0; }
+.lpi-del { color: #ccc; font-size: 15px; flex-shrink: 0; margin-left: 4px; opacity: 0; transition: all .15s; cursor: pointer; }
 .left-panel-item:hover .lpi-del { opacity: 1; }
 .lpi-del:hover { color: #f56c6c; }
-.lpi-empty { padding: 20px 0; text-align: center; color: #bbb; font-size: 12px; }
+.lpi-empty { padding: 24px 0; text-align: center; color: #bbb; font-size: 13px; }
+
+.right-bar { }
+
+.toggle-strip {
+  position: fixed;
+  left: calc(50vw - 105mm - 10px);
+  top: 50%; transform: translateY(-50%);
+  width: 10px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; user-select: none;
+  color: #bbb; z-index: 25;
+  transition: left 0.25s ease;
+}
+.toggle-strip.collapsed { left: 4px; }
+.toggle-strip:hover { color: #409eff; }
+.toggle-strip svg { display: block; }
 
 .timestamp-stamp {
   text-align: right;

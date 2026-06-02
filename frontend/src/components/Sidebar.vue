@@ -67,7 +67,6 @@ const emit = defineEmits([
   transform: translateY(-50%);
   z-index: 10;
 }
-
 .btn-group {
   display: flex;
   flex-direction: column;

@@ -26,8 +26,8 @@ const emit = defineEmits(['prevPage', 'nextPage', 'addPage', 'deletePage'])
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 6px;
   user-select: none;
 }
 

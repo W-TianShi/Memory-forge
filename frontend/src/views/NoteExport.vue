@@ -1483,8 +1483,8 @@ onUnmounted(() => {
   border-radius: 10px;
   color: #2c3e50;
 }
-#editor::-webkit-scrollbar { width: 6px; }
-#editor::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 3px; }
+#editor::-webkit-scrollbar { width: 0; height: 0; }
+#editor { scrollbar-width: none; }
 
 #editor.is-empty::before { content: '在此编辑笔记内容…'; color: #bbb; font-style: italic; }
 
