@@ -310,7 +310,7 @@ function onEditorInput() {
   }
 }
 const mdPattern = /(^#{1,6}\s)|(\*\*|__)|(^[\-\*\+]\s)|(^\d+\.\s)|(```)|(\[.*?\]\(.*?\))|(`[^`]+`)|(^\|)|(^>\s)/m
-const mathPattern = /(?<!\$)\$(?!\$)[^$\n]+?\$(?!\$)|(?<!\$)\$\$[\s\S]*?\$\$/
+const mathPattern = /(?<!\$)\$(?!\$)[^$\n]+?\$(?!\$)|(?<!\$)\$\$[\s\S]*?\$\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\\frac|\\dfrac|\\sqrt|\\int|\\sum|\\prod|\\lim|\\infty|\\mathbb|\\mathbf|\\boldsymbol|\\mathcal|\\Rightarrow|\\Leftrightarrow|\\forall|\\exists|\\partial|\\nabla|\\sin|\\cos|\\tan|\\ln|\\log|\\cdot|\\times|\\div|\\pm|\\leq|\\geq|\\neq|\\approx|\\equiv|\\in|\\notin|\\subset|\\subseteq|\\angle|\\triangle|\\perp|\\mid|\\langle|\\rangle|\\ldots|\\cdots|\\vdots|\\ddots|\\begin\{|\\end\{|\\left|\\right|\\big|\\Big|\\overline|\\underline|\\hat|\\tilde|\\vec|\\dot|\\ddot/
 
 function looksLikeMarkdown(text) {
   return mdPattern.test(text)
@@ -323,14 +323,16 @@ function hasMath(text) {
 function renderMath(html) {
   let result = html
   result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_, tex) => {
-    try {
-      return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false })
-    } catch { return _ }
+    try { return '<span contenteditable="false">' + katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false }) + '</span>' } catch { return _ }
   })
   result = result.replace(/(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)/g, (_, tex) => {
-    try {
-      return katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false })
-    } catch { return _ }
+    try { return '<span contenteditable="false">' + katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false }) + '</span>' } catch { return _ }
+  })
+  result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_, tex) => {
+    try { return '<span contenteditable="false">' + katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false }) + '</span>' } catch { return _ }
+  })
+  result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_, tex) => {
+    try { return '<span contenteditable="false">' + katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false }) + '</span>' } catch { return _ }
   })
   return result
 }
@@ -378,10 +380,12 @@ function onPaste(e) {
     }
   }
   e.preventDefault()
-  const text = (e.clipboardData || window.clipboardData).getData('text/plain')
+  let text = (e.clipboardData || window.clipboardData).getData('text/plain')
+  text = text.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&gt;/g, '>').replace(/&lt;/g, '<')
+  text = text.replace(/\[([^\]]*?\\(?:frac|sqrt|int|sum|prod|lim|infty|sin|cos|tan|ln|log|mathbb|mathbf|boldsymbol|mathcal|Rightarrow|forall|exists|partial|nabla|cases|begin|end)[^\]]*?)\]/g, (_, m) => '\\[' + m + '\\]')
   if (looksLikeMarkdown(text) || hasMath(text)) {
     try {
-      let html = marked.parse(text.trimEnd()).replace(/>\n+</g, '><').trim()
+      let html = marked.parse(text.trimEnd()).replace(/>\n+</g, '><').replace(/&#39;/g, "'").replace(/&gt;/g, '>').replace(/&lt;/g, '<').trim()
       if (hasMath(text)) html = renderMath(html)
       const sel = window.getSelection()
       if (sel.rangeCount > 0) {
