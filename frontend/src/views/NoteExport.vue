@@ -140,6 +140,9 @@
         <div class="icon-btn" :title="'工程方格纸 - ' + (!engGridMode ? '点击:实线' : engGridMode === 'solid' ? '当前:实线 | 点击:虚线' : '当前:虚线 | 点击:关闭')" @click="toggleEngGrid" :class="{ active: engGridMode }">
           <svg v-bind="svg1024" v-html="I.engGrid"></svg>
         </div>
+        <div class="icon-btn" title="斜点阵纸" @click="toggleHexDotGrid" :class="{ active: hexDotGridMode }">
+          <svg v-bind="svg24" v-html="I.hexDots"></svg>
+        </div>
         <div class="tb-sep"></div>
         <div class="icon-btn" title="网格颜色" @click="toggleColorBar('grid')" :class="{ active: activeColorBar === 'grid' }" :style="{ color: gridColor || '#888' }">
           <svg v-bind="svg24" v-html="I.palette"></svg>
@@ -150,7 +153,7 @@
       <div class="editor-wrap">
         <div id="editor" ref="editorRef" contenteditable="true"
              @input="onEditorInput" @paste="onPaste" @keydown="onEditorKeydown" @click="onEditorClick" @mousedown="onEditorMousedown" @mouseover="onEditorMouseover"
-             :class="{ 'is-empty': isEditorEmpty, 'show-all': showAnswer, 'grid-paper': gridMode, 'dot-grid': dotGridMode, 'iso-grid': isoGridMode, 'eng-grid-solid': engGridMode === 'solid', 'eng-grid-dashed': engGridMode === 'dashed' }"
+             :class="{ 'is-empty': isEditorEmpty, 'show-all': showAnswer, 'grid-paper': gridMode, 'dot-grid': dotGridMode, 'iso-grid': isoGridMode, 'eng-grid-solid': engGridMode === 'solid', 'eng-grid-dashed': engGridMode === 'dashed', 'hex-dots': hexDotGridMode }"
              :style="{ '--answer-color': answerColor }"></div>
       </div>
 
@@ -209,7 +212,7 @@ import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import { marked } from 'marked'
 import katex from 'katex'
-import { I, SVG24, SVG1024 } from '../icons.js'
+import { I } from '../icons.js'
 import 'katex/dist/katex.min.css'
 
 const svg24 = {
@@ -250,31 +253,37 @@ const dotGridMode = ref(false)
 const isoGridMode = ref(false)
 const engGridMode = ref(false)
 function syncGridBg() {
-  const anyOn = gridMode.value || dotGridMode.value || isoGridMode.value || engGridMode.value
+  const anyOn = gridMode.value || dotGridMode.value || isoGridMode.value || engGridMode.value || hexDotGridMode.value
   if (!anyOn) { clearGridColor(); return }
   if (gridColor.value) applyGridColor()
   else clearGridColor()
 }
 function toggleGrid() {
   gridMode.value = !gridMode.value
-  if (gridMode.value) { dotGridMode.value = false; isoGridMode.value = false; engGridMode.value = false }
+  if (gridMode.value) { dotGridMode.value = false; isoGridMode.value = false; engGridMode.value = false; hexDotGridMode.value = false }
   syncGridBg()
 }
 function toggleDotGrid() {
   dotGridMode.value = !dotGridMode.value
-  if (dotGridMode.value) { gridMode.value = false; isoGridMode.value = false; engGridMode.value = false }
+  if (dotGridMode.value) { gridMode.value = false; isoGridMode.value = false; engGridMode.value = false; hexDotGridMode.value = false }
   syncGridBg()
 }
 function toggleIsoGrid() {
   isoGridMode.value = !isoGridMode.value
-  if (isoGridMode.value) { gridMode.value = false; dotGridMode.value = false; engGridMode.value = false }
+  if (isoGridMode.value) { gridMode.value = false; dotGridMode.value = false; engGridMode.value = false; hexDotGridMode.value = false }
   syncGridBg()
 }
 function toggleEngGrid() {
   if (!engGridMode.value) engGridMode.value = 'solid'
   else if (engGridMode.value === 'solid') engGridMode.value = 'dashed'
   else engGridMode.value = false
-  if (engGridMode.value) { gridMode.value = false; dotGridMode.value = false; isoGridMode.value = false }
+  if (engGridMode.value) { gridMode.value = false; dotGridMode.value = false; isoGridMode.value = false; hexDotGridMode.value = false }
+  syncGridBg()
+}
+const hexDotGridMode = ref(false)
+function toggleHexDotGrid() {
+  hexDotGridMode.value = !hexDotGridMode.value
+  if (hexDotGridMode.value) { gridMode.value = false; dotGridMode.value = false; isoGridMode.value = false; engGridMode.value = false }
   syncGridBg()
 }
 const NOTE_COLORS = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399', '#5470c6', '#91cc75', '#fc8452', '#ee6666', '#73c0de']
@@ -598,11 +607,18 @@ function applyGridColor() {
   const c = gridColor.value
   const el = editorRef.value
   if (!el || !c) return
-  if (!gridMode.value && !dotGridMode.value && !isoGridMode.value && !engGridMode.value) return
+  if (!gridMode.value && !dotGridMode.value && !isoGridMode.value && !engGridMode.value && !hexDotGridMode.value) return
+  el.style.removeProperty('background-size')
+  el.style.removeProperty('background-position')
   if (gridMode.value) {
     el.style.backgroundImage = `linear-gradient(to right, ${c} 1px, transparent 1px), linear-gradient(to bottom, ${c} 1px, transparent 1px)`
   } else if (dotGridMode.value) {
     el.style.backgroundImage = `radial-gradient(circle, ${c} 1px, transparent 1px)`
+  } else if (hexDotGridMode.value) {
+    el.style.backgroundImage = `radial-gradient(circle, ${c} 1px, transparent 1px), radial-gradient(circle, ${c} 1px, transparent 1px)`
+    el.style.backgroundSize = '20px 34.64px'
+    el.style.backgroundPosition = '0 0, 10px 17.32px'
+    return
   } else if (isoGridMode.value) {
     el.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="23"><g stroke="${c}" stroke-width="0.5"><line x1="0" y1="0" x2="0" y2="23"/><line x1="20" y1="0" x2="20" y2="23"/><line x1="0" y1="0" x2="40" y2="23"/><line x1="40" y1="0" x2="0" y2="23"/></g></svg>`)}")`
   } else if (engGridMode.value) {
@@ -614,7 +630,12 @@ function applyGridColor() {
 }
 
 function clearGridColor() {
-  if (editorRef.value) editorRef.value.style.removeProperty('background-image')
+  const el = editorRef.value
+  if (el) {
+    el.style.removeProperty('background-image')
+    el.style.removeProperty('background-size')
+    el.style.removeProperty('background-position')
+  }
 }
 
 const blankColors = ['#d93025', '#1976d2', '#388e3c', '#f57c00', '#7b1fa2', '#424242']
@@ -947,7 +968,7 @@ async function exportPdf() {
   const fn = getFileName('pdf')
   showToast('生成PDF中...')
   const el = editorRef.value
-  const hasBgPattern = gridMode.value || dotGridMode.value || isoGridMode.value || engGridMode.value
+  const hasBgPattern = gridMode.value || dotGridMode.value || isoGridMode.value || engGridMode.value || hexDotGridMode.value
   const bak = { o: el.style.overflow, h: el.style.height, b: el.style.border, bg: el.style.backgroundColor }
   const overrides = { overflow: 'visible', height: 'auto', border: 'none' }
   if (!hasBgPattern) overrides.backgroundColor = '#fff'
@@ -1042,6 +1063,17 @@ async function exportPdf() {
         }
         for (let k = 0; k <= 0.5 * pageW + cs * pageH; k += step) {
           drawLine(k, -1)
+        }
+      } else if (hexDotGridMode.value) {
+        const {r,g,b} = gc ? h2rgb(gc) : {r:208,g:208,b:208}
+        pdf.setFillColor(r, g, b)
+        const dx = 5, dy = 5 * Math.sqrt(3)
+        for (let row = -1; row < pageH / dy + 2; row++) {
+          const y = row * dy / 2
+          const ox = (row % 2) * dx / 2
+          for (let col = -1; col < pageW / dx + 2; col++) {
+            pdf.circle(col * dx + ox, y, 0.18, 'F')
+          }
         }
       } else if (engGridMode.value) {
         const {r:r1,g:g1,b:b1} = gc ? h2rgb(gc) : {r:224,g:224,b:224}
@@ -1194,7 +1226,7 @@ onUnmounted(() => {
   overflow: hidden;
   background: #f0f2f5;
   padding: 10px;
-  gap: 8px;
+  gap: 0;
 }
 
 /* ---- Left: note list ---- */
@@ -1334,7 +1366,7 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
-  gap: 4px;
+  gap: 0;
 }
 
 /* ---- Color bars ---- */
@@ -1484,6 +1516,15 @@ onUnmounted(() => {
   background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='40'%20height='40'%20viewBox='0%200%2040%2040'%3E%3Cpath%20d='M4,0%20L4,40%20M8,0%20L8,40%20M12,0%20L12,40%20M16,0%20L16,40%20M20,0%20L20,40%20M24,0%20L24,40%20M28,0%20L28,40%20M32,0%20L32,40%20M36,0%20L36,40%20M0,4%20L40,4%20M0,8%20L40,8%20M0,12%20L40,12%20M0,16%20L40,16%20M0,20%20L40,20%20M0,24%20L40,24%20M0,28%20L40,28%20M0,32%20L40,32%20M0,36%20L40,36'%20stroke='%23e0e0e0'%20stroke-width='0.5'/%3E%3Cpath%20d='M0,0%20L0,40%20M0,0%20L40,0'%20stroke='%23999'%20stroke-width='1'%20stroke-dasharray='4%203'/%3E%3C/svg%3E");
   background-size: 40px 40px;
   background-position: 0 0;
+}
+
+#editor.hex-dots {
+  background-color: #fdfdfd;
+  background-image:
+    radial-gradient(circle, #d0d0d0 1px, transparent 1px),
+    radial-gradient(circle, #d0d0d0 1px, transparent 1px);
+  background-size: 20px 34.64px;
+  background-position: 0 0, 10px 17.32px;
 }
 
 #editor :deep(a) { color: #409eff; text-decoration: underline; cursor: pointer; }

@@ -8,6 +8,8 @@ import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import { useWords } from '../composables/useWords.js'
 import { useVisibility } from '../composables/useVisibility.js'
+import { listSheets, saveSheet, getSheet, deleteSheet } from '../api/wordSheets.js'
+import { getUsername } from '../api/auth.js'
 import Sidebar from '../components/Sidebar.vue'
 import PageBar from '../components/PageBar.vue'
 
@@ -77,6 +79,67 @@ function doImport() {
 }
 
 const searching = ref(false)
+const sheetList = ref([])
+const currentSheetId = ref(null)
+
+async function refreshSheetList() {
+  if (!getUsername()) return
+  sheetList.value = await listSheets()
+  // auto-load last sheet
+  const lastId = localStorage.getItem('mf_last_sheet')
+  if (lastId && sheetList.value.find(s => s.id == lastId) && !currentSheetId.value) {
+    pickSheet(Number(lastId))
+  }
+}
+
+async function newSheet() {
+  if (!getUsername()) { alert('请先登录'); return }
+  const title = prompt('请输入单词纸名称', '单词纸 ' + new Date().toLocaleDateString())
+  if (!title) return
+  const sheet = await saveSheet({ title, data: '[]', colCount: columnCount.value })
+  currentSheetId.value = sheet.id
+  columnCount.value = 2
+  words.value = Array.from({ length: 22 }, (_, i) => ({ word: '', phonetic: '', meaning: '', originalIndex: Date.now() + i, col: i % 2 }))
+  refreshSheetList()
+}
+
+async function doSaveSheet() {
+  if (!getUsername()) { alert('请先登录'); return }
+  if (!currentSheetId.value) { newSheet(); return }
+  syncFromDOM()
+  const title = sheetList.value.find(s => s.id === currentSheetId.value)?.title || '单词纸'
+  const data = JSON.stringify(words.value.map(w => ({ word: w.word, phonetic: w.phonetic, meaning: w.meaning })))
+  await saveSheet({ id: currentSheetId.value, title, data, colCount: columnCount.value })
+  localStorage.setItem('mf_last_sheet', currentSheetId.value)
+  refreshSheetList()
+}
+
+async function doDeleteSheet(id) {
+  if (!confirm('确定要删除这张单词纸吗？数据无法恢复。')) return
+  await deleteSheet(id)
+  if (currentSheetId.value === id) { currentSheetId.value = null; words.value = words.value.map(w => ({...w, word:'', phonetic:'', meaning:''})) }
+  refreshSheetList()
+}
+
+async function pickSheet(id) {
+  syncFromDOM()
+  await doSaveSheetSilent()
+  const sheet = await getSheet(id)
+  columnCount.value = sheet.colCount || 2
+  const data = JSON.parse(sheet.data)
+  words.value = data.map((w, i) => ({ word: w.word || '', phonetic: w.phonetic || '', meaning: w.meaning || '', originalIndex: Date.now() + i, col: i % columnCount.value }))
+  currentSheetId.value = sheet.id
+  localStorage.setItem('mf_last_sheet', id)
+  currentPage.value = 0
+}
+
+async function doSaveSheetSilent() {
+  if (!currentSheetId.value || !getUsername()) return
+  syncFromDOM()
+  const title = sheetList.value.find(s => s.id === currentSheetId.value)?.title || '单词纸'
+  const data = JSON.stringify(words.value.map(w => ({ word: w.word, phonetic: w.phonetic, meaning: w.meaning })))
+  await saveSheet({ id: currentSheetId.value, title, data, colCount: columnCount.value })
+}
 
 async function searchAll() {
   syncFromDOM()
@@ -96,7 +159,7 @@ async function searchAll() {
   const wordList = pending.map(p => p.w).join(',')
 
   try {
-    const res = await fetch(`/api/word/batch?words=${encodeURIComponent(wordList)}`)
+    const res = await fetch('/api/word/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ words: wordList }) })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     data.forEach((item, idx) => {
@@ -171,6 +234,7 @@ watch(pageWords, () => nextTick(() => syncDataToDOM()), { deep: true })
 onMounted(() => {
   window.addEventListener('keydown', onWindowKeydown)
   nextTick(() => syncDataToDOM())
+  refreshSheetList()
 })
 
 onUnmounted(() => {
@@ -180,6 +244,22 @@ onUnmounted(() => {
 
 <template>
   <div class="app-wrap">
+    <div class="left-panel">
+      <div class="left-panel-head">
+        <button class="lph-btn" @click="newSheet">+ 新建</button>
+        <button class="lph-btn-save" @click="doSaveSheet">保存</button>
+      </div>
+      <div class="left-panel-list">
+        <div v-for="s in sheetList" :key="s.id" class="left-panel-item"
+             :class="{ active: s.id === currentSheetId }"
+             @click="pickSheet(s.id)">
+          <span class="lpi-title">{{ s.title }}</span>
+          <span class="lpi-del" @click.stop="doDeleteSheet(s.id)">×</span>
+        </div>
+        <div v-if="sheetList.length===0" class="lpi-empty">点击新建创建单词纸</div>
+      </div>
+    </div>
+
     <Sidebar
       :wordHidden="wordHidden"
       :phoneticHidden="phoneticHidden"
@@ -452,6 +532,44 @@ onUnmounted(() => {
 .btn-cancel:hover { background: #e0e0e0; }
 .btn-confirm { background: #409eff; color: #fff; }
 .btn-confirm:hover { background: #337ecc; }
+
+.left-panel {
+  position: fixed;
+  left: calc(50vw - 105mm - 190px);
+  top: 50%; transform: translateY(-50%);
+  width: 160px; max-height: 50vh;
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  padding: 12px 10px; z-index: 10;
+  display: flex; flex-direction: column;
+}
+.left-panel-head {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px; padding: 0 4px;
+}
+.lph-btn {
+  padding: 3px 10px; font-size: 11px; border: none; border-radius: 4px;
+  background: #409eff; color: #fff; cursor: pointer;
+}
+.lph-btn:hover { background: #337ecc; }
+.lph-btn-save {
+  padding: 3px 10px; font-size: 11px; border: 1px solid #409eff; border-radius: 4px;
+  background: #fff; color: #409eff; cursor: pointer;
+}
+.lph-btn-save:hover { background: #ecf5ff; }
+.left-panel-list { flex: 1; overflow-y: auto; }
+.left-panel-item {
+  padding: 6px 8px; margin-bottom: 1px; border-radius: 5px; cursor: pointer;
+  font-size: 12px; color: #555; display: flex; justify-content: space-between;
+}
+.left-panel-item:hover { background: #f5f7fa; }
+.left-panel-item.active { background: #e8f4ff; color: #409eff; font-weight: 600; }
+.lpi-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.lpi-date { color: #ccc; font-size: 10px; margin-left: 4px; }
+.lpi-del { color: #ccc; font-size: 14px; flex-shrink: 0; margin-left: 4px; opacity: 0; transition: all .15s; cursor: pointer; }
+.left-panel-item:hover .lpi-del { opacity: 1; }
+.lpi-del:hover { color: #f56c6c; }
+.lpi-empty { padding: 20px 0; text-align: center; color: #bbb; font-size: 12px; }
 
 .timestamp-stamp {
   text-align: right;

@@ -186,7 +186,7 @@ export function useWords(contentRef) {
     words, currentPage, totalPages, pageWords, columns, undoStack, columnCount,
     nextCol, globalIndex, displayIndex,
     pushUndo, undo, syncFromDOM,
-    onWordKeydown, addWordEnd, removeWord, addWord, removeLastWord,
+    onWordKeydown, removeWord, addWord, removeLastWord,
     addPage, deletePage, prevPage, nextPage,
     batchAddWords
   }

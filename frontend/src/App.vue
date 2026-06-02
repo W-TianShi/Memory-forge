@@ -1,8 +1,9 @@
 <template>
-  <div id="app-root">
+  <Landing v-if="showLanding" @enter="showLanding = false; localStorage.setItem('mf_visited','1')" />
+  <div id="app-root" v-else>
     <nav class="app-nav">
-      <router-link to="/">笔记工具</router-link>
-      <router-link to="/words">单词记忆</router-link>
+      <router-link to="/">笔记纸</router-link>
+      <router-link to="/words">单词纸</router-link>
       <router-link to="/math-ai">数学AI</router-link>
       <router-link to="/mistakes">错题整理</router-link>
       <div class="nav-right" id="nav-right">
@@ -59,7 +60,10 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
-import { sendCode, register, login, setAuth, clearAuth, getUsername, isLoggedIn } from './api/auth.js'
+import Landing from './views/Landing.vue'
+import { sendCode, register, login, setAuth, clearAuth, getUsername } from './api/auth.js'
+
+const showLanding = ref(!localStorage.getItem('mf_visited'))
 
 const authVisible = ref(false)
 const authMode = ref('login')

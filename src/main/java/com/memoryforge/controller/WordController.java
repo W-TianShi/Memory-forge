@@ -20,8 +20,9 @@ public class WordController {
         return wordService.getWordInfo(word);
     }
 
-    @GetMapping("/api/word/batch")
-    public List<Map<String, Object>> getWordInfoBatch(@RequestParam String words) {
+    @PostMapping("/api/word/batch")
+    public List<Map<String, Object>> getWordInfoBatch(@RequestBody Map<String, String> body) {
+        String words = body.get("words");
         List<String> wordList = Arrays.asList(words.split("[,，\\s]+"));
         return wordService.getWordInfoBatch(wordList);
     }

@@ -62,7 +62,7 @@ const emit = defineEmits([
 <style scoped>
 .sidebar {
   position: fixed;
-  left: calc(50vw - 105mm - 48px);
+  right: calc(50vw - 105mm - 48px);
   top: 50%;
   transform: translateY(-50%);
   z-index: 10;
