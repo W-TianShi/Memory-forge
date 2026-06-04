@@ -61,11 +61,8 @@ const emit = defineEmits([
 
 <style scoped>
 .sidebar {
-  position: fixed;
-  right: calc(50vw - 105mm - 48px);
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 10;
+  align-self: center;
+  padding-left: 10px;
 }
 .btn-group {
   display: flex;

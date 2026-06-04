@@ -208,11 +208,10 @@ export default { name: 'NoteExport' }
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 
-import html2canvas from 'html2canvas'
-import { jsPDF } from 'jspdf'
 import { marked } from 'marked'
 import katex from 'katex'
 import { I } from '../icons.js'
+import { exportPdf as exportPdfApi } from '../api/pdf.js'
 import 'katex/dist/katex.min.css'
 
 const svg24 = {
@@ -659,10 +658,33 @@ function setAnswerColor(color) {
 // ---- 格式命令 ----
 function execFormat(cmd, val) {
   const sel = window.getSelection()
-  let savedRange = sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null
+  if (sel.rangeCount === 0) return
+  const savedRange = sel.getRangeAt(0).cloneRange()
+
   editorRef.value.focus()
-  if (savedRange) { sel.removeAllRanges(); sel.addRange(savedRange) }
+
+  // Find contenteditable="false" elements (KaTeX formulas, etc.) that
+  // intersect the selection.  execCommand skips them, so we temporarily
+  // unlock them, apply the command, then lock them again.
+  const affected = []
+  if (editorRef.value) {
+    for (const el of editorRef.value.querySelectorAll('[contenteditable="false"]')) {
+      if (sel.containsNode(el, true)) {
+        el.contentEditable = 'true'
+        affected.push(el)
+      }
+    }
+  }
+
+  sel.removeAllRanges()
+  sel.addRange(savedRange)
   document.execCommand(cmd, false, val)
+
+  // Restore non-editable state
+  affected.forEach(el => el.contentEditable = 'false')
+
+  syncEditorToNote()
+  saveNotes()
 }
 
 const isBold = ref(false)
@@ -968,200 +990,165 @@ function getFileName(ext) {
   return `${key}${c > 1 ? `(${c - 1})` : ''}.${ext}`
 }
 
+function collectKatexCss() {
+  // Search ALL stylesheets for KaTeX rules — Vite merges CSS in production
+  // so the katex file no longer has its own href.
+  let css = ''
+  try {
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules || []) {
+          if (rule.cssText && /katex|@font-face.*KaTeX/i.test(rule.cssText)) {
+            css += rule.cssText + '\n'
+          }
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return css
+}
+
+function getGridParams() {
+  // Return grid type & color for the backend PDFBox overlay, or null if no grid.
+  if (gridMode.value)       return { type: 'grid', color: gridColor.value }
+  if (dotGridMode.value)    return { type: 'dot', color: gridColor.value }
+  if (isoGridMode.value)    return { type: 'iso', color: gridColor.value }
+  if (engGridMode.value)    return { type: engGridMode.value === 'dashed' ? 'eng-dashed' : 'eng-solid', color: gridColor.value }
+  if (hexDotGridMode.value) return { type: 'hex', color: gridColor.value }
+  return null
+}
+
+function buildExportHtml() {
+  const el = editorRef.value
+
+  const clone = el.cloneNode(true)
+
+  // Strip default white backgrounds so the PDFBox grid shows through
+  clone.querySelectorAll('div,p,span,h1,h2,h3,h4,h5,h6,td,th,li,blockquote').forEach(el => {
+    const bg = (el.style.background || el.style.backgroundColor || '').toLowerCase()
+    if (!bg || bg === 'white' || bg === '#fff' || bg === '#ffffff' || bg === 'transparent') {
+      el.style.backgroundColor = 'transparent'
+      el.style.background = 'transparent'
+    }
+  })
+  clone.querySelectorAll('ol, ul').forEach(el => {
+    el.style.listStylePosition = 'inside'
+    el.style.paddingLeft = '0'
+  })
+  clone.querySelectorAll('pre').forEach(el => {
+    el.style.background = 'transparent'
+    el.style.border = 'none'
+    el.style.borderLeft = '3px solid #999'
+    el.style.borderRadius = '0'
+  })
+  clone.querySelectorAll('code').forEach(el => {
+    el.style.background = 'transparent'
+  })
+  clone.querySelectorAll('.blank').forEach(el => {
+    el.style.color = showAnswer.value ? answerColor.value : 'transparent'
+    el.style.borderBottom = '0.3mm solid #999'
+    el.style.display = 'inline'
+  })
+
+  // @page rules
+  const margin = 15
+  const bindMargin = bindSide.value !== 'none' ? bindWidth.value : 0
+  let pageCss = ''
+  if (bindSide.value === 'left') {
+    pageCss = `
+      @page :right { margin-left: ${margin + bindMargin}mm; margin-right: ${margin}mm; }
+      @page :left  { margin-left: ${margin}mm; margin-right: ${margin + bindMargin}mm; }
+    `
+  } else if (bindSide.value === 'right') {
+    pageCss = `
+      @page :right { margin-left: ${margin}mm; margin-right: ${margin + bindMargin}mm; }
+      @page :left  { margin-left: ${margin + bindMargin}mm; margin-right: ${margin}mm; }
+    `
+  } else {
+    pageCss = `@page { margin: ${margin}mm; }`
+  }
+
+  const blankColor = showAnswer.value ? answerColor.value : 'transparent'
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/katex.min.css" crossorigin="anonymous">
+<style>
+  @page { size: A4; margin: ${margin}mm; }
+  ${pageCss}
+  html, body {
+    margin: 0; padding: 0;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 15px; line-height: 1.9;
+    font-weight: normal;
+    color: #000;
+    white-space: pre-wrap; word-wrap: break-word;
+    background: transparent;
+  }
+  /* heading sizes — match the editor exactly */
+  h1 { font-size: 24px; font-weight: 700; margin: 16px 0 8px; color: #1a1a1a; }
+  h2 { font-size: 21px; font-weight: 700; margin: 14px 0 6px; color: #1a1a1a; }
+  h3 { font-size: 18px; font-weight: 700; margin: 12px 0 6px; color: #1a1a1a; }
+  h4 { font-size: 16px; font-weight: 700; margin: 10px 0 4px; color: #333; }
+  h5 { font-size: 15px; font-weight: 600; margin: 8px 0 4px; color: #444; }
+  h6 { font-size: 14px; font-weight: 600; margin: 6px 0 2px; color: #555; }
+  p { margin: 0; }
+  .blank { display: inline; border-bottom: 0.3mm solid #999; color: ${blankColor}; }
+  pre {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 14px; line-height: 1.6;
+    background: transparent;
+    border: none;
+    border-left: 3px solid #999;
+    border-radius: 0;
+    padding: 12px 16px;
+    margin: 8px 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  code {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.9em;
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+  }
+  pre code { font-size: 14px; background: transparent; }
+  ol, ul { padding-left: 1.5em; margin: 4px 0; list-style-position: inside; }
+  li { margin-bottom: 2px; }
+  table { border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+  th { border: 1px solid #ccc; padding: 6px 10px; background: transparent; text-align: left; font-weight: 600; }
+  td { border: 1px solid #ccc; padding: 6px 10px; }
+</style>
+</head>
+<body>${clone.innerHTML}</body>
+</html>`
+}
+
 async function exportPdf() {
   const fn = getFileName('pdf')
   showToast('生成PDF中...')
-  const el = editorRef.value
-  const hasBgPattern = gridMode.value || dotGridMode.value || isoGridMode.value || engGridMode.value || hexDotGridMode.value
-  const bak = { o: el.style.overflow, h: el.style.height, b: el.style.border, bg: el.style.backgroundColor }
-  const overrides = { overflow: 'visible', height: 'auto', border: 'none' }
-  if (!hasBgPattern) overrides.backgroundColor = '#fff'
-  Object.assign(el.style, overrides)
 
   try {
-    await new Promise(r => requestAnimationFrame(r))
-
-    const pdf = new jsPDF('p', 'mm', 'a4')
-    const pageW = pdf.internal.pageSize.getWidth()
-    const pageH = pdf.internal.pageSize.getHeight()
-    const margin = 15
-    const bindMargin = bindSide.value !== 'none' ? bindWidth.value : 0
-    let marginL = margin + (bindSide.value === 'left' ? bindMargin : 0)
-    let marginR = margin + (bindSide.value === 'right' ? bindMargin : 0)
-    const pdfW = pageW - marginL - marginR
-    const pdfH = pageH - margin * 2
-    const contentWidth = el.clientWidth
-    const pageContentH = contentWidth * (pdfH / pdfW)
-
-    const builder = document.createElement('div')
-    const bgStyle = 'background:transparent;'
-    const baseStyle = `position:fixed;left:-9999px;top:0;width:${contentWidth}px;padding:20px;font-size:16px;line-height:1.8;font-family:system-ui,-apple-system,sans-serif;${bgStyle}white-space:pre-wrap;word-wrap:break-word;`
-    builder.style.cssText = baseStyle
-    document.body.appendChild(builder)
-
-    const pageClones = []
-    const childNodes = [...el.childNodes]
-
-    for (const node of childNodes) {
-      const clone = node.cloneNode(true)
-      builder.appendChild(clone)
-
-      if (builder.scrollHeight > pageContentH && builder.childNodes.length > 1) {
-        builder.removeChild(clone)
-        pageClones.push(builder.cloneNode(true))
-        builder.innerHTML = ''
-        builder.appendChild(clone)
-      }
-    }
-    if (builder.childNodes.length > 0) {
-      pageClones.push(builder.cloneNode(true))
-    }
-    document.body.removeChild(builder)
-
-    function drawPageBackground() {
-      pdf.setFillColor(253, 253, 253)
-      pdf.rect(0, 0, pageW, pageH, 'F')
-      const gc = gridColor.value
-      function h2rgb(h) { return { r: parseInt(h.slice(1,3),16), g: parseInt(h.slice(3,5),16), b: parseInt(h.slice(5,7),16) } }
-      if (gridMode.value) {
-        const {r,g,b} = gc ? h2rgb(gc) : {r:210,g:210,b:210}
-        pdf.setDrawColor(r, g, b)
-        pdf.setLineWidth(0.2)
-        for (let x = 0; x <= pageW; x += 5) {
-          pdf.line(x, 0, x, pageH)
-        }
-        for (let y = 0; y <= pageH; y += 5) {
-          pdf.line(0, y, pageW, y)
-        }
-      } else if (dotGridMode.value) {
-        const {r,g,b} = gc ? h2rgb(gc) : {r:208,g:208,b:208}
-        pdf.setFillColor(r, g, b)
-        for (let x = 0; x <= pageW; x += 5) {
-          for (let y = 0; y <= pageH; y += 5) {
-            pdf.circle(x, y, 0.25, 'F')
-          }
-        }
-      } else if (isoGridMode.value) {
-        const {r,g,b} = gc ? h2rgb(gc) : {r:210,g:210,b:210}
-        pdf.setDrawColor(r, g, b)
-        pdf.setLineWidth(0.2)
-        const cs = Math.sqrt(3) / 2
-        const step = 5
-        for (let x = 0; x <= pageW; x += step) {
-          pdf.line(x, 0, x, pageH)
-        }
-        function drawLine(k, sign) {
-          const pts = []
-          const y0 = k / cs
-          if (y0 >= 0 && y0 <= pageH) pts.push([0, y0])
-          const yW = (k + sign * 0.5 * pageW) / cs
-          if (yW >= 0 && yW <= pageH) pts.push([pageW, yW])
-          const xT = -sign * 2 * k
-          if (xT >= 0 && xT <= pageW) pts.push([xT, 0])
-          const xB = sign * 2 * (cs * pageH - k)
-          if (xB >= 0 && xB <= pageW) pts.push([xB, pageH])
-          if (pts.length >= 2) pdf.line(pts[0][0], pts[0][1], pts[1][0], pts[1][1])
-        }
-        for (let k = -0.5 * pageW; k <= cs * pageH; k += step) {
-          drawLine(k, 1)
-        }
-        for (let k = 0; k <= 0.5 * pageW + cs * pageH; k += step) {
-          drawLine(k, -1)
-        }
-      } else if (hexDotGridMode.value) {
-        const {r,g,b} = gc ? h2rgb(gc) : {r:208,g:208,b:208}
-        pdf.setFillColor(r, g, b)
-        const dx = 5, dy = 5 * Math.sqrt(3)
-        for (let row = -1; row < pageH / dy + 2; row++) {
-          const y = row * dy / 2
-          const ox = (row % 2) * dx / 2
-          for (let col = -1; col < pageW / dx + 2; col++) {
-            pdf.circle(col * dx + ox, y, 0.18, 'F')
-          }
-        }
-      } else if (engGridMode.value) {
-        const {r:r1,g:g1,b:b1} = gc ? h2rgb(gc) : {r:224,g:224,b:224}
-        const {r:r2,g:g2,b:b2} = gc ? {r:Math.max(0,r1-50),g:Math.max(0,g1-50),b:Math.max(0,b1-50)} : {r:153,g:153,b:153}
-        pdf.setDrawColor(r1, g1, b1)
-        pdf.setLineWidth(0.1)
-        for (let x = 0; x <= pageW; x += 1) {
-          pdf.line(x, 0, x, pageH)
-        }
-        for (let y = 0; y <= pageH; y += 1) {
-          pdf.line(0, y, pageW, y)
-        }
-        pdf.setDrawColor(r2, g2, b2)
-        pdf.setLineWidth(0.2)
-        if (engGridMode.value === 'dashed') pdf.setLineDash([1, 0.75], 0)
-        for (let x = 0; x <= pageW; x += 10) {
-          pdf.line(x, 0, x, pageH)
-        }
-        for (let y = 0; y <= pageH; y += 10) {
-          pdf.line(0, y, pageW, y)
-        }
-        if (engGridMode.value === 'dashed') pdf.setLineDash([])
-      }
-    }
-
-    // auto-fill blank page
-    if (autoBlank.value && pageClones.length % 2 === 1 && hasBgPattern) {
-      pageClones.push(document.createElement('div'))
-    }
-
-    for (let p = 0; p < pageClones.length; p++) {
-      if (p > 0) pdf.addPage()
-      if (hasBgPattern) drawPageBackground()
-
-      // alternating binding margins
-      const isOdd = p % 2 === 0
-      let curML = margin, curMR = margin
-      if (bindSide.value === 'left') {
-        if (isOdd) curML = margin + bindMargin
-        else curMR = margin + bindMargin
-      } else if (bindSide.value === 'right') {
-        if (isOdd) curMR = margin + bindMargin
-        else curML = margin + bindMargin
-      }
-      const curPW = pageW - curML - curMR
-      const curPH = pageH - margin * 2
-
-      const pageEl = pageClones[p]
-      pageEl.style.cssText = baseStyle
-      document.body.appendChild(pageEl)
-
-      pageEl.querySelectorAll('ol, ul').forEach(el => {
-        el.style.listStylePosition = 'inside'
-        el.style.paddingLeft = '0'
-      })
-      pageEl.querySelectorAll('pre').forEach(el => {
-        el.style.background = 'transparent'
-        el.style.border = 'none'
-        el.style.borderLeft = '3px solid #999'
-        el.style.borderRadius = '0'
-      })
-      pageEl.querySelectorAll('code').forEach(el => {
-        el.style.background = 'transparent'
-      })
-      pageEl.querySelectorAll('.blank').forEach(el => {
-        el.style.color = showAnswer.value ? answerColor.value : 'transparent'
-      })
-
-      await new Promise(r => requestAnimationFrame(r))
-      const canvas = await html2canvas(pageEl, { scale: 1.5, useCORS: true, backgroundColor: null })
-      document.body.removeChild(pageEl)
-
-      const scale = Math.min(curPW / canvas.width, curPH / canvas.height)
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', curML, margin,
-        canvas.width * scale, canvas.height * scale)
-    }
-
-    pdf.save(fn)
+    const html = buildExportHtml()
+    const grid = getGridParams()
+    const blob = await exportPdfApi(html, false,
+      grid ? grid.type : null,
+      grid ? grid.color : null)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fn
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
     showToast(`PDF导出成功：${fn}`)
   } catch (e) {
     console.error('PDF导出错误:', e)
-    showToast('导出失败')
-  } finally {
-    Object.assign(el.style, { overflow: bak.o, height: bak.h, border: bak.b, backgroundColor: bak.bg })
+    showToast('导出失败: ' + (e.message || '未知错误'))
   }
 }
 
@@ -1481,7 +1468,7 @@ onUnmounted(() => {
   outline: none;
   background: #fff;
   border-radius: 10px;
-  color: #2c3e50;
+  color: #000;
 }
 #editor::-webkit-scrollbar { width: 0; height: 0; }
 #editor { scrollbar-width: none; }
@@ -1493,13 +1480,13 @@ onUnmounted(() => {
   background-image:
     linear-gradient(to right, #e5e5e5 1px, transparent 1px),
     linear-gradient(to bottom, #e5e5e5 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-size: 5mm 5mm;
 }
 
 #editor.dot-grid {
   background-color: #fdfdfd;
   background-image: radial-gradient(circle, #d0d0d0 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-size: 5mm 5mm;
 }
 
 #editor.iso-grid {
@@ -1511,14 +1498,14 @@ onUnmounted(() => {
 #editor.eng-grid-solid {
   background-color: #fff;
   background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='40'%20height='40'%20viewBox='0%200%2040%2040'%3E%3Cpath%20d='M4,0%20L4,40%20M8,0%20L8,40%20M12,0%20L12,40%20M16,0%20L16,40%20M20,0%20L20,40%20M24,0%20L24,40%20M28,0%20L28,40%20M32,0%20L32,40%20M36,0%20L36,40%20M0,4%20L40,4%20M0,8%20L40,8%20M0,12%20L40,12%20M0,16%20L40,16%20M0,20%20L40,20%20M0,24%20L40,24%20M0,28%20L40,28%20M0,32%20L40,32%20M0,36%20L40,36'%20stroke='%23e0e0e0'%20stroke-width='0.5'/%3E%3Cpath%20d='M0,0%20L0,40%20M0,0%20L40,0'%20stroke='%23999'%20stroke-width='1'/%3E%3C/svg%3E");
-  background-size: 40px 40px;
+  background-size: 10mm 10mm;
   background-position: 0 0;
 }
 
 #editor.eng-grid-dashed {
   background-color: #fff;
   background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='40'%20height='40'%20viewBox='0%200%2040%2040'%3E%3Cpath%20d='M4,0%20L4,40%20M8,0%20L8,40%20M12,0%20L12,40%20M16,0%20L16,40%20M20,0%20L20,40%20M24,0%20L24,40%20M28,0%20L28,40%20M32,0%20L32,40%20M36,0%20L36,40%20M0,4%20L40,4%20M0,8%20L40,8%20M0,12%20L40,12%20M0,16%20L40,16%20M0,20%20L40,20%20M0,24%20L40,24%20M0,28%20L40,28%20M0,32%20L40,32%20M0,36%20L40,36'%20stroke='%23e0e0e0'%20stroke-width='0.5'/%3E%3Cpath%20d='M0,0%20L0,40%20M0,0%20L40,0'%20stroke='%23999'%20stroke-width='1'%20stroke-dasharray='4%203'/%3E%3C/svg%3E");
-  background-size: 40px 40px;
+  background-size: 10mm 10mm;
   background-position: 0 0;
 }
 

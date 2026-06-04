@@ -1,0 +1,10 @@
+{
+  "name": "memoryforge-pdf-service",
+  "version": "1.0.0",
+  "description": "Puppeteer-based PDF generation for MemoryForge",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "puppeteer": "^24.0.0"
+  }
+}

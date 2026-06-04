@@ -198,7 +198,7 @@ async function exportPdf() {
       const w = pdfW - margin * 2
       const h = pdfH - margin * 2
       const scale = Math.min(w / canvas.width, h / canvas.height)
-      pdf.addImage(canvas.toDataURL('image/jpeg'), 'JPEG', margin, margin, canvas.width * scale, canvas.height * scale)
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, canvas.width * scale, canvas.height * scale)
     }
 
     const d = new Date()
@@ -490,7 +490,7 @@ onUnmounted(() => {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .phonetic {
-  font-size: 6.5pt; color: #666;
+  font-size: 6.5pt; color: #bbb;
   border: none; background: transparent;
   padding: 0 2px; outline: none; width: 100%;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -499,6 +499,7 @@ onUnmounted(() => {
 .meaning-text {
   border: none; background: transparent;
   font-size: 7.5pt;
+  color: #999;
   padding: 0;
   width: 100%;
   line-height: 1.35;
@@ -550,20 +551,21 @@ onUnmounted(() => {
 .btn-confirm:hover { background: #337ecc; }
 
 .left-panel {
-  position: fixed;
-  left: 10px; top: calc(10px + 12mm); bottom: 10px;
-  width: calc(50vw - 105mm - 10px);
-  padding: 8px 10px;
+  width: 230px;
+  flex-shrink: 0;
+  padding: 14px 10px;
   display: flex;
   flex-direction: column;
   background: #fff;
   border-radius: 10px;
   box-shadow: 0 2px 12px rgba(0,0,0,.06);
-  transition: transform 0.25s ease, opacity 0.25s ease;
+  transition: width 0.2s, padding 0.2s, min-width 0.2s;
   overflow: hidden;
-  z-index: 20;
+  position: relative;
 }
-.left-panel.collapsed { transform: translateX(calc(-100% - 20px)); opacity: 0; pointer-events: none; }
+.left-panel.collapsed { width: 0; min-width: 0; padding: 14px 0; box-shadow: none; border: none; border-radius: 0; overflow: hidden; }
+.left-panel.collapsed .left-panel-head,
+.left-panel.collapsed .left-panel-list { display: none; }
 .left-panel-head {
   display: flex; align-items: center; gap: 6px;
   margin-bottom: 10px; padding: 0 4px;
@@ -600,19 +602,18 @@ onUnmounted(() => {
 .lpi-del:hover { color: #f56c6c; }
 .lpi-empty { padding: 24px 0; text-align: center; color: #bbb; font-size: 13px; }
 
-.right-bar { }
-
 .toggle-strip {
-  position: fixed;
-  left: calc(50vw - 105mm - 10px);
-  top: 50%; transform: translateY(-50%);
-  width: 10px; height: 40px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; user-select: none;
-  color: #bbb; z-index: 25;
-  transition: left 0.25s ease;
+  width: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  color: #bbb;
+  transition: width 0.2s;
 }
-.toggle-strip.collapsed { left: 4px; }
+.toggle-strip.collapsed { width: 5px; }
 .toggle-strip:hover { color: #409eff; }
 .toggle-strip svg { display: block; }
 
