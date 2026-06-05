@@ -1,6 +1,6 @@
 <template>
   <div class="note-app">
-    <div class="toast" :class="{ show: toastVisible }">{{ toastMsg }}</div>
+    <ToastOverlay :visible="toastVisible" :message="toastMsg" :type="toastType" />
 
     <div class="left" :class="{ collapsed: leftCollapsed }">
       <div class="list-header">
@@ -212,6 +212,8 @@ import { marked } from 'marked'
 import katex from 'katex'
 import { I } from '../icons.js'
 import { exportPdf as exportPdfApi } from '../api/pdf.js'
+import { useToast } from '../composables/useToast.js'
+import ToastOverlay from '../components/ToastOverlay.vue'
 import 'katex/dist/katex.min.css'
 
 const svg24 = {
@@ -230,15 +232,7 @@ const svg1024 = {
 }
 
 // ---- Toast ----
-const toastVisible = ref(false)
-const toastMsg = ref('')
-let toastTimer = null
-function showToast(msg) {
-  toastMsg.value = msg
-  toastVisible.value = true
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => toastVisible.value = false, 1800)
-}
+const { visible: toastVisible, message: toastMsg, type: toastType, show: showToast } = useToast()
 
 // ---- Notes ----
 const notes = ref([])
@@ -1129,7 +1123,7 @@ function buildExportHtml() {
 
 async function exportPdf() {
   const fn = getFileName('pdf')
-  showToast('生成PDF中...')
+  showToast('生成 PDF 中...', 'loading')
 
   try {
     const html = buildExportHtml()
@@ -1145,17 +1139,17 @@ async function exportPdf() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    showToast(`PDF导出成功：${fn}`)
+    showToast(`PDF 导出成功：${fn}`, 'success')
   } catch (e) {
     console.error('PDF导出错误:', e)
-    showToast('导出失败: ' + (e.message || '未知错误'))
+    showToast('导出失败: ' + (e.message || '未知错误'), 'error')
   }
 }
 
 function exportWord() {
   syncEditorToNote()
   const fn = getFileName('doc')
-  showToast('正在导出Word…')
+  showToast('正在导出 Word...', 'loading')
   const styles = `<style>body{font-size:16px;line-height:1.8;margin:20px;font-family:微软雅黑}p{margin:0}ol,ul{padding-left:1.5em}.blank{display:inline;border-bottom:2px solid #999;color:${showAnswer.value ? answerColor.value : 'transparent'}}.img-wrap{display:inline-block;max-width:100%}.img-wrap img{width:100%;display:block}br{line-height:1.8}</style>`
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">${styles}</head><body>${editorRef.value.innerHTML}</body></html>`
   const blob = new Blob([html], { type: 'application/msword' })
@@ -1163,7 +1157,7 @@ function exportWord() {
   const a = document.createElement('a')
   a.href = url; a.download = fn; a.click()
   URL.revokeObjectURL(url)
-  setTimeout(() => showToast(`Word导出成功：${fn}`), 300)
+  setTimeout(() => showToast(`Word 导出成功：${fn}`, 'success'), 200)
 }
 
 // ---- 遮盖板 ----
@@ -1581,23 +1575,6 @@ onUnmounted(() => {
 #editor :deep(table) { border-collapse: collapse; margin: 8px 0; font-size: 14px; }
 #editor :deep(th) { border: 1px solid #ccc; padding: 6px 10px; background: #f5f7fa; text-align: left; font-weight: 600; min-width: 60px; }
 #editor :deep(td) { border: 1px solid #ccc; padding: 6px 10px; min-width: 60px; }
-
-/* ---- Toast ---- */
-.toast {
-  position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%,-50%);
-  background: rgba(0,0,0,0.7);
-  color: #fff;
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-size: 14px;
-  z-index: 9999;
-  opacity: 0;
-  transition: opacity 0.3s;
-  pointer-events: none;
-}
-.toast.show { opacity: 1; }
 
 @media print {
   #editor {

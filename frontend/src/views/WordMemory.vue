@@ -4,12 +4,13 @@ export default { name: 'WordMemory' }
 <script setup>
 import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue'
 
-import html2canvas from 'html2canvas'
-import { jsPDF } from 'jspdf'
 import { useWords } from '../composables/useWords.js'
 import { useVisibility } from '../composables/useVisibility.js'
 import { listSheets, saveSheet, getSheet, deleteSheet } from '../api/wordSheets.js'
+import { exportPdf as exportPdfApi } from '../api/pdf.js'
 import { getUsername } from '../api/auth.js'
+import { useToast } from '../composables/useToast.js'
+import ToastOverlay from '../components/ToastOverlay.vue'
 import Sidebar from '../components/Sidebar.vue'
 import PageBar from '../components/PageBar.vue'
 
@@ -83,6 +84,8 @@ const searching = ref(false)
 const sheetList = ref([])
 const currentSheetId = ref(null)
 
+const { visible: toastVisible, message: toastMsg, type: toastType, show: showToast } = useToast()
+
 async function refreshSheetList() {
   if (!getUsername()) return
   sheetList.value = await listSheets()
@@ -100,7 +103,7 @@ async function newSheet() {
   const sheet = await saveSheet({ title, data: '[]', colCount: columnCount.value })
   currentSheetId.value = sheet.id
   columnCount.value = 2
-  words.value = Array.from({ length: 22 }, (_, i) => ({ word: '', phonetic: '', meaning: '', originalIndex: Date.now() + i, col: i % 2 }))
+  words.value = Array.from({ length: 28 }, (_, i) => ({ word: '', phonetic: '', meaning: '', originalIndex: Date.now() + i, col: i % 2 }))
   refreshSheetList()
 }
 
@@ -176,38 +179,116 @@ async function searchAll() {
   }
 }
 
-async function exportPdf() {
-  syncFromDOM()
-  const el = contentRef.value
-  if (!el) return
-  const savedPage = currentPage.value
+function escapeHtml(s) {
+  if (!s) return ''
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
 
-  try {
-    const pdf = new jsPDF('p', 'mm', 'a4')
-    const pdfW = pdf.internal.pageSize.getWidth()
-    const pdfH = pdf.internal.pageSize.getHeight()
-    const margin = 10
+function buildExportHtml() {
+  const cols = columnCount.value
+  const allWords = words.value
+  const ROWS_PER_PAGE = 25
+  const wordsPerPage = ROWS_PER_PAGE * cols
 
-    for (let p = 0; p < totalPages.value; p++) {
-      currentPage.value = p
-      await nextTick()
-      await new Promise(r => requestAnimationFrame(r))
+  const pages = []
+  for (let i = 0; i < allWords.length; i += wordsPerPage) {
+    pages.push(allWords.slice(i, i + wordsPerPage))
+  }
 
-      if (p > 0) pdf.addPage()
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, background: '#fff' })
-      const w = pdfW - margin * 2
-      const h = pdfH - margin * 2
-      const scale = Math.min(w / canvas.width, h / canvas.height)
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, canvas.width * scale, canvas.height * scale)
+  if (pages.length === 0) {
+    pages.push([])
+  }
+
+  const colsClass = cols === 3 ? 'cols-3' : ''
+  let pagesHtml = ''
+
+  pages.forEach((pageWords, pageIdx) => {
+    const colWords = []
+    for (let c = 0; c < cols; c++) {
+      colWords.push(pageWords.filter(w => w.col === c))
     }
 
+    let tableHtml = '<div class="grid-container">'
+    for (let c = 0; c < cols; c++) {
+      tableHtml += '<div class="table-column">'
+      tableHtml += '<div class="table-header"><div>序号</div><div>单词 / 音标</div><div>释义</div></div>'
+      colWords[c].forEach((w) => {
+        const globalIdx = pageWords.findIndex(pw => pw.originalIndex === w.originalIndex)
+        const idx = String(globalIdx + 1).padStart(2, '0')
+        tableHtml += '<div class="table-row">'
+        tableHtml += `<div class="index">${idx}</div>`
+        tableHtml += '<div class="word-section">'
+        tableHtml += `<div class="word">${escapeHtml(w.word)}</div>`
+        tableHtml += `<div class="phonetic">${escapeHtml(w.phonetic)}</div>`
+        tableHtml += '</div>'
+        tableHtml += `<div class="meaning-text">${escapeHtml(w.meaning)}</div>`
+        tableHtml += '</div>'
+      })
+      tableHtml += '</div>'
+    }
+    tableHtml += '</div>'
+
+    const isLast = pageIdx === pages.length - 1
+    let tsHtml = ''
+    if (isLast && timestampVisible.value && timestampText.value) {
+      tsHtml = `<div class="timestamp-stamp">${escapeHtml(timestampText.value)}</div>`
+    }
+
+    const breakClass = isLast ? '' : ' page-break'
+    pagesHtml += `<div class="content-area ${colsClass}${breakClass}">\n${tableHtml}\n${tsHtml}\n</div>\n`
+  })
+
+  return '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="utf-8">\n<style>\n'
+    + '@page { size: A4; margin: 0; }\n'
+    + '*, *::before, *::after { box-sizing: border-box; }\n'
+    + 'html, body { margin: 0; padding: 0; font-family: "SimSun", "Arial", sans-serif; color: #000; background: #fff; }\n'
+    + '.content-area { width: 210mm; height: 297mm; padding: 12mm 14mm; background: #fff; position: relative; overflow: hidden; }\n'
+    + '.page-break { page-break-after: always; }\n'
+    + '.grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }\n'
+    + '.cols-3 .grid-container { grid-template-columns: 1fr 1fr 1fr; gap: 1.5mm; }\n'
+    + '.table-column { display: flex; flex-direction: column; }\n'
+    + '.cols-3 .table-column { min-width: 0; }\n'
+    + '.table-header { display: grid; grid-template-columns: 8mm 32mm 1fr; gap: 4px; padding: 3px 4px; background: #f0f5f9; border: 1px solid #ddd; font-size: 7.5pt; font-weight: 600; color: #555; white-space: nowrap; }\n'
+    + '.cols-3 .table-header { grid-template-columns: 5mm 32mm 1fr; gap: 2px; padding: 1px 2px; font-size: 6pt; line-height: 1.2; white-space: nowrap; }\n'
+    + '.table-row { display: grid; grid-template-columns: 8mm 32mm 1fr; align-items: start; gap: 4px; padding: 3px 6px; border: 1px solid #ddd; border-top: none; height: 10.5mm; overflow: hidden; page-break-inside: avoid; }\n'
+    + '.cols-3 .table-row { grid-template-columns: 5mm 32mm 1fr; gap: 2px; padding: 2px 3px; }\n'
+    + '.cols-3 .word-section { font-size: 9.5pt; }\n'
+    + '.index { font-size: 7.5pt; color: #666; text-align: center; padding-top: 1px; }\n'
+    + '.word-section { display: flex; flex-direction: column; gap: 0; overflow: hidden; }\n'
+    + '.word { font-family: "Arial", "Helvetica", "SimHei", "黑体", sans-serif; font-size: 9pt; font-weight: bold; color: #000; border: none; background: transparent; padding: 0 2px; outline: none; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n'
+    + '.phonetic { font-size: 7.5pt; color: #888; border: none; background: transparent; padding: 0 2px; outline: none; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n'
+    + '.meaning-text { border: none; background: transparent; font-size: 7.5pt; color: #555; padding: 0; width: 100%; line-height: 1.35; outline: none; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; word-break: break-all; }\n'
+    + '.timestamp-stamp { position: absolute; bottom: 10mm; right: 14mm; text-align: right; font-size: 9pt; color: #aaa; font-family: Consolas, "Courier New", monospace; }\n'
+    + '</style>\n</head>\n<body>\n'
+    + pagesHtml
+    + '</body>\n</html>'
+}
+
+const exportingPdf = ref(false)
+
+async function exportPdf() {
+  syncFromDOM()
+  exportingPdf.value = true
+  showToast('PDF 导出中...', 'loading')
+  try {
+    const html = buildExportHtml()
+    const blob = await exportPdfApi(html, false, null, null)
     const d = new Date()
     const ts = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`
-    pdf.save(`单词记忆-${ts}.pdf`)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `单词记忆-${ts}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    showToast('PDF 导出成功', 'success')
   } catch (e) {
     console.error('PDF导出错误:', e)
+    showToast('导出失败：' + e.message, 'error')
   } finally {
-    currentPage.value = savedPage
+    exportingPdf.value = false
   }
 }
 
@@ -274,6 +355,12 @@ onUnmounted(() => {
           <div class="progress-fill progress-indeterminate"></div>
         </div>
         <span class="progress-label">查询中...</span>
+      </div>
+      <div v-if="exportingPdf" class="progress-wrap">
+        <div class="progress-track">
+          <div class="progress-fill progress-indeterminate"></div>
+        </div>
+        <span class="progress-label">PDF 导出中，请稍候...</span>
       </div>
       <div class="content-area" ref="contentRef" :class="{ 'cols-3': columnCount === 3 }">
         <div class="grid-container">
@@ -348,6 +435,7 @@ onUnmounted(() => {
       @toggleColumns="toggleColumns"
     />
 
+    <ToastOverlay :visible="toastVisible" :message="toastMsg" :type="toastType" />
   </div>
 </template>
 
@@ -444,12 +532,13 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 8mm 32mm 1fr;
   gap: 4px;
-  padding: 3px 6px;
+  padding: 3px 4px;
   background: #f0f5f9;
   border: 1px solid #ddd;
-  font-size: 8pt;
+  font-size: 7.5pt;
   font-weight: 600;
   color: #555;
+  white-space: nowrap;
 }
 
 .table-row {
@@ -465,12 +554,12 @@ onUnmounted(() => {
 }
 
 .cols-3 .table-column { min-width: 0; }
-.cols-3 .table-header { grid-template-columns: 5mm 32mm 1fr; gap: 2px; padding: 1px 3px; font-size: 6.5pt; line-height: 1.2; }
+.cols-3 .table-header { grid-template-columns: 5mm 32mm 1fr; gap: 2px; padding: 1px 2px; font-size: 6pt; line-height: 1.2; white-space: nowrap; }
 .cols-3 .table-row { grid-template-columns: 5mm 32mm 1fr; gap: 2px; padding: 2px 3px; }
-.cols-3 .word-section { font-size: 9pt; }
+.cols-3 .word-section { font-size: 9.5pt; }
 
 .index {
-  font-size: 8pt;
+  font-size: 7.5pt;
   color: #666;
   text-align: center;
   padding-top: 1px;
@@ -484,13 +573,14 @@ onUnmounted(() => {
 }
 
 .word {
-  font-size: 9pt; font-weight: 600; color: #222;
+  font-family: "Arial", "Helvetica", "SimHei", "黑体", sans-serif;
+  font-size: 9pt; font-weight: bold; color: #000;
   border: none; background: transparent;
   padding: 0 2px; outline: none; width: 100%;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .phonetic {
-  font-size: 6.5pt; color: #bbb;
+  font-size: 7.5pt; color: #888;
   border: none; background: transparent;
   padding: 0 2px; outline: none; width: 100%;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -499,7 +589,7 @@ onUnmounted(() => {
 .meaning-text {
   border: none; background: transparent;
   font-size: 7.5pt;
-  color: #999;
+  color: #555;
   padding: 0;
   width: 100%;
   line-height: 1.35;
@@ -634,4 +724,5 @@ onUnmounted(() => {
   .content-area { box-shadow: none; }
   .meaning-text { -webkit-line-clamp: unset; line-clamp: unset; display: block; overflow: visible; }
 }
+
 </style>

@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 const ROWS_PER_PAGE = 25
 const MAX_UNDO = 50
 
-const DEFAULT_COUNT = 22
+const DEFAULT_COUNT = 28
 
 function createEmptyWords(count) {
   return Array.from({ length: count }, (_, i) => ({
