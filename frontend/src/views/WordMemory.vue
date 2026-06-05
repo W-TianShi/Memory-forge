@@ -9,7 +9,9 @@ import { useVisibility } from '../composables/useVisibility.js'
 import { listSheets, saveSheet, getSheet, deleteSheet } from '../api/wordSheets.js'
 import { exportPdf as exportPdfApi } from '../api/pdf.js'
 import { getUsername } from '../api/auth.js'
+import { I, svg24Attrs } from '../icons.js'
 import { useToast } from '../composables/useToast.js'
+import { usePrintQueue } from '../composables/usePrintQueue.js'
 import ToastOverlay from '../components/ToastOverlay.vue'
 import Sidebar from '../components/Sidebar.vue'
 import PageBar from '../components/PageBar.vue'
@@ -84,7 +86,9 @@ const searching = ref(false)
 const sheetList = ref([])
 const currentSheetId = ref(null)
 
+const svg24 = svg24Attrs
 const { visible: toastVisible, message: toastMsg, type: toastType, show: showToast } = useToast()
+const { add: addToQueue } = usePrintQueue()
 
 async function refreshSheetList() {
   if (!getUsername()) return
@@ -292,6 +296,85 @@ async function exportPdf() {
   }
 }
 
+function buildBlankPageHtml() {
+  const cols = columnCount.value
+  const colsClass = cols === 3 ? 'cols-3' : ''
+
+  let tableHtml = '<div class="grid-container">'
+  for (let c = 0; c < cols; c++) {
+    tableHtml += '<div class="table-column">'
+    tableHtml += '<div class="table-header"><div>序号</div><div>单词 / 音标</div><div>释义</div></div>'
+    for (let r = 0; r < 25; r++) {
+      tableHtml += '<div class="table-row">'
+      tableHtml += '<div class="index"></div>'
+      tableHtml += '<div class="word-section"><div class="word"></div><div class="phonetic"></div></div>'
+      tableHtml += '<div class="meaning-text"></div>'
+      tableHtml += '</div>'
+    }
+    tableHtml += '</div>'
+  }
+  tableHtml += '</div>'
+
+  return '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="utf-8">\n<style>\n'
+    + '@page { size: A4; margin: 0; }\n'
+    + '*, *::before, *::after { box-sizing: border-box; }\n'
+    + 'html, body { margin: 0; padding: 0; font-family: "SimSun", "Arial", sans-serif; color: #000; background: #fff; }\n'
+    + '.content-area { width: 210mm; height: 297mm; padding: 12mm 14mm; background: #fff; position: relative; overflow: hidden; }\n'
+    + '.grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }\n'
+    + '.cols-3 .grid-container { grid-template-columns: 1fr 1fr 1fr; gap: 1.5mm; }\n'
+    + '.table-column { display: flex; flex-direction: column; }\n'
+    + '.cols-3 .table-column { min-width: 0; }\n'
+    + '.table-header { display: grid; grid-template-columns: 8mm 32mm 1fr; gap: 4px; padding: 3px 4px; background: #f0f5f9; border: 1px solid #ddd; font-size: 7.5pt; font-weight: 600; color: #555; white-space: nowrap; }\n'
+    + '.cols-3 .table-header { grid-template-columns: 5mm 32mm 1fr; gap: 2px; padding: 1px 2px; font-size: 6pt; line-height: 1.2; white-space: nowrap; }\n'
+    + '.table-row { display: grid; grid-template-columns: 8mm 32mm 1fr; align-items: start; gap: 4px; padding: 3px 6px; border: 1px solid #ddd; border-top: none; height: 10.5mm; overflow: hidden; page-break-inside: avoid; }\n'
+    + '.cols-3 .table-row { grid-template-columns: 5mm 32mm 1fr; gap: 2px; padding: 2px 3px; }\n'
+    + '.index { font-size: 7.5pt; color: #666; text-align: center; padding-top: 1px; }\n'
+    + '.word-section { display: flex; flex-direction: column; gap: 0; overflow: hidden; }\n'
+    + '.word { font-family: "Arial", "Helvetica", "SimHei", "黑体", sans-serif; font-size: 9pt; font-weight: bold; color: #000; border: none; background: transparent; padding: 0 2px; outline: none; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n'
+    + '.phonetic { font-size: 7.5pt; color: #888; border: none; background: transparent; padding: 0 2px; outline: none; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n'
+    + '.meaning-text { border: none; background: transparent; font-size: 7.5pt; color: #555; padding: 0; width: 100%; line-height: 1.35; outline: none; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; word-break: break-all; }\n'
+    + '</style>\n</head>\n<body>\n'
+    + `<div class="content-area ${colsClass}">\n${tableHtml}\n</div>\n`
+    + '</body>\n</html>'
+}
+
+function addToPrintQueueHandler() {
+  syncFromDOM()
+  const html = buildExportHtml()
+  const blankHtml = buildBlankPageHtml()
+  const sheetTitle = sheetList.value.find(s => s.id === currentSheetId.value)?.title || '单词纸'
+  addToQueue({
+    source: 'word',
+    title: `${sheetTitle} · 第${currentPage.value}页`,
+    html,
+    blankHtml,
+    landscape: false,
+    gridType: null,
+    gridColor: null
+  })
+  showToast('已加入打印队列', 'success')
+}
+
+// ── Sidebar ⋮ menu ──
+const menuSheetId = ref(null)
+
+function toggleSheetMenu(id) {
+  menuSheetId.value = menuSheetId.value === id ? null : id
+}
+
+async function addSheetToQueueFromSidebar(sheet) {
+  menuSheetId.value = null
+  if (sheet.id !== currentSheetId.value) {
+    pickSheet(sheet.id)
+    await nextTick()
+  }
+  addToPrintQueueHandler()
+}
+
+function closeSheetMenu() {
+  menuSheetId.value = null
+}
+
 function syncDataToDOM() {
   if (!contentRef.value) return
   contentRef.value.querySelectorAll('.word').forEach(el => {
@@ -315,12 +398,14 @@ watch(pageWords, () => nextTick(() => syncDataToDOM()), { deep: true })
 
 onMounted(() => {
   window.addEventListener('keydown', onWindowKeydown)
+  document.addEventListener('click', closeSheetMenu)
   nextTick(() => syncDataToDOM())
   refreshSheetList()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onWindowKeydown)
+  document.removeEventListener('click', closeSheetMenu)
 })
 </script>
 
@@ -336,7 +421,17 @@ onUnmounted(() => {
              :class="{ active: s.id === currentSheetId }"
              @click="pickSheet(s.id)">
           <span class="lpi-title">{{ s.title }}</span>
+          <span class="lpi-more" @click.stop="toggleSheetMenu(s.id)" title="更多">
+            <svg width="15" height="15" v-bind="svg24" v-html="I.ellipsis"></svg>
+          </span>
           <span class="lpi-del" @click.stop="doDeleteSheet(s.id)">×</span>
+
+          <div class="lpi-menu" v-if="menuSheetId === s.id" @click.stop>
+            <div class="lpi-menu-item" @click="addSheetToQueueFromSidebar(s)">
+              <svg width="14" height="14" v-bind="svg24" v-html="I.mergeExport"></svg>
+              <span>加入打印队列</span>
+            </div>
+          </div>
         </div>
         <div v-if="sheetList.length===0" class="lpi-empty">点击新建创建单词纸</div>
       </div>
@@ -679,6 +774,7 @@ onUnmounted(() => {
 .left-panel-list::-webkit-scrollbar { width: 4px; }
 .left-panel-list::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 2px; }
 .left-panel-item {
+  position: relative;
   padding: 7px 8px; margin-bottom: 2px; border-radius: 6px; cursor: pointer;
   font-size: 13px; color: #555; display: flex; align-items: center;
   transition: all 0.15s;
@@ -687,9 +783,42 @@ onUnmounted(() => {
 .left-panel-item.active { background: #e8f4ff; color: #409eff; font-weight: 600; }
 .lpi-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .lpi-date { color: #ccc; font-size: 10px; margin-left: 4px; flex-shrink: 0; }
+.lpi-more {
+  color: #ccc; flex-shrink: 0; margin-left: 4px;
+  opacity: 0; transition: opacity .15s;
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 4px;
+}
+.left-panel-item:hover .lpi-more { opacity: 1; }
+.lpi-more:hover { color: #409eff; }
 .lpi-del { color: #ccc; font-size: 15px; flex-shrink: 0; margin-left: 4px; opacity: 0; transition: all .15s; cursor: pointer; }
 .left-panel-item:hover .lpi-del { opacity: 1; }
 .lpi-del:hover { color: #f56c6c; }
+
+.lpi-menu {
+  position: absolute;
+  top: 100%; right: 28px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  border: 1px solid #eee;
+  z-index: 50;
+  min-width: 140px;
+  padding: 4px 0;
+  animation: menu-in .15s ease;
+}
+@keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.lpi-menu-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #303133;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .1s;
+}
+.lpi-menu-item:hover { color: #409eff; }
+
 .lpi-empty { padding: 24px 0; text-align: center; color: #bbb; font-size: 13px; }
 
 .toggle-strip {

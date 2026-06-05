@@ -57,6 +57,8 @@ export const I = {
   timestamp:   '<circle cx="12" cy="14" r="8"/><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/>',
   columns:     '<path d="M10.5 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5.5"/><path d="M15 3v7.5"/><path d="M9 3v18"/><circle cx="18" cy="18" r="3"/><path d="m14.3 19.6 1-.4"/><path d="m15.2 16.9-.9-.3"/><path d="m16.6 21.7.3-.9"/><path d="m16.8 15.3-.4-1"/><path d="m19.1 15.2.3-.9"/><path d="m19.6 21.7-.4-1"/><path d="m20.7 16.8 1-.4"/><path d="m21.7 19.4-.9-.3"/>',
   hexDots:     '<circle cx="12" cy="3" r="1.5"/><circle cx="4" cy="7" r="1.5"/><circle cx="20" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="4" cy="17" r="1.5"/><circle cx="20" cy="17" r="1.5"/><circle cx="12" cy="21" r="1.5"/>',
+  mergeExport: '<path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22"/><path d="m20 22-5-5"/>',
+  ellipsis:    '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
 }
 
 export const I1024 = new Set(['exportPdf', 'exportWord', 'coverBoard'])

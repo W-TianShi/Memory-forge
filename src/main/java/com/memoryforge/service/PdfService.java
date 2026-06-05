@@ -1,19 +1,25 @@
 package com.memoryforge.service;
 
+import com.memoryforge.dto.PdfMergeRequest;
+import org.apache.pdfbox.io.MemoryUsageSetting;
+import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -24,6 +30,13 @@ public class PdfService {
 
     public byte[] generatePdf(String html, boolean landscape,
                               String gridType, String gridColor)
+            throws IOException, InterruptedException {
+        return generatePdf(html, landscape, gridType, gridColor, false);
+    }
+
+    public byte[] generatePdf(String html, boolean landscape,
+                              String gridType, String gridColor,
+                              boolean autoBlank)
             throws IOException, InterruptedException {
 
         Path htmlFile = null;
@@ -63,7 +76,22 @@ public class PdfService {
                 pdfBytes = overlayGrid(pdfBytes, gridType, gridColor);
             }
 
-            log.info("PDF generated: {} bytes, grid={}", pdfBytes.length, gridType);
+            // 3. Auto-blank page for duplex printing: if page count is odd,
+            //    append a blank page with the same grid template.
+            //    Falls back to standard grid when no grid mode is active.
+            if (autoBlank) {
+                try (PDDocument doc = PDDocument.load(pdfBytes)) {
+                    if (doc.getNumberOfPages() % 2 != 0) {
+                        String bgType = (gridType != null && !gridType.isEmpty()) ? gridType : "grid";
+                        String bgColor = (gridType != null && !gridType.isEmpty()) ? gridColor : null;
+                        byte[] blankWithGrid = createBlankPagePdf(bgType, bgColor);
+                        pdfBytes = appendPages(pdfBytes, blankWithGrid);
+                        log.info("Auto-blank page appended (was {} pages, grid={})", doc.getNumberOfPages(), bgType);
+                    }
+                }
+            }
+
+            log.info("PDF generated: {} bytes, grid={}, autoBlank={}", pdfBytes.length, gridType, autoBlank);
             return pdfBytes;
 
         } finally {
@@ -74,6 +102,95 @@ public class PdfService {
                 try { Files.deleteIfExists(pdfFile); } catch (IOException ignored) {}
             }
         }
+    }
+
+    /** Append one PDF after another using PDFBox. */
+    private byte[] appendPages(byte[] base, byte[] toAppend) throws IOException {
+        PDFMergerUtility merger = new PDFMergerUtility();
+        merger.addSource(new ByteArrayInputStream(base));
+        merger.addSource(new ByteArrayInputStream(toAppend));
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        merger.setDestinationStream(out);
+        merger.mergeDocuments(MemoryUsageSetting.setupTempFileOnly());
+        return out.toByteArray();
+    }
+
+    // ── Merge PDFs for print queue ────────────────────────────────
+
+    public byte[] mergePdfs(List<PdfMergeRequest.PdfMergeItem> items)
+            throws IOException, InterruptedException {
+
+        List<byte[]> pdfs = new ArrayList<>();
+        int cumulativePages = 0;
+        byte[] plainBlank = null;
+
+        for (PdfMergeRequest.PdfMergeItem item : items) {
+            if (item.isBlank()) {
+                if (plainBlank == null) plainBlank = createBlankPagePdf(null, null);
+                pdfs.add(plainBlank);
+                cumulativePages++;
+                continue;
+            }
+
+            byte[] pdfBytes = generatePdf(item.getHtml(), item.isLandscape(),
+                    item.getGridType(), item.getGridColor());
+
+            int pageCount;
+            try (PDDocument doc = PDDocument.load(pdfBytes)) {
+                pageCount = doc.getNumberOfPages();
+            }
+
+            // Per-item odd-page fill: if this doc has odd pages and the
+            // user opted in, append a blank page.
+            // - Has blankHtml (word paper) → generate from that HTML
+            // - Has grid (note) → blank page with same grid template
+            // - Neither → plain blank A4 page
+            if (item.isNewSheet() && pageCount % 2 != 0) {
+                byte[] blankPage;
+                if (item.getBlankHtml() != null && !item.getBlankHtml().isEmpty()) {
+                    blankPage = generatePdf(item.getBlankHtml(), item.isLandscape(), null, null);
+                    log.info("[merge] odd pages ({}), appending blank word table", pageCount);
+                } else {
+                    String bgType = (item.getGridType() != null && !item.getGridType().isEmpty())
+                            ? item.getGridType() : null;
+                    String bgColor = bgType != null ? item.getGridColor() : null;
+                    blankPage = createBlankPagePdf(bgType, bgColor);
+                    log.info("[merge] odd pages ({}), appending blank page grid={} color={}",
+                            pageCount, bgType, bgColor);
+                }
+                pdfBytes = appendPages(pdfBytes, blankPage);
+                pageCount++;
+            }
+
+            pdfs.add(pdfBytes);
+            cumulativePages += pageCount;
+        }
+
+        PDFMergerUtility merger = new PDFMergerUtility();
+        for (byte[] pdf : pdfs) {
+            merger.addSource(new ByteArrayInputStream(pdf));
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        merger.setDestinationStream(out);
+        merger.mergeDocuments(MemoryUsageSetting.setupTempFileOnly());
+
+        log.info("Merged PDF: {} items → {} pages → {} bytes",
+                items.size(), cumulativePages, out.size());
+        return out.toByteArray();
+    }
+
+    /** Create a single blank A4 page PDF, optionally with a grid overlay. */
+    private byte[] createBlankPagePdf(String gridType, String gridColor) throws IOException {
+        PDDocument doc = new PDDocument();
+        doc.addPage(new PDPage(PDRectangle.A4));
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        doc.save(bos);
+        doc.close();
+        byte[] bytes = bos.toByteArray();
+        if (gridType != null && !gridType.isEmpty()) {
+            bytes = overlayGrid(bytes, gridType, gridColor);
+        }
+        return bytes;
     }
 
     // ── Grid overlay ─────────────────────────────────────────────

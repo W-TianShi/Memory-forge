@@ -7,6 +7,10 @@
       <router-link to="/math-ai">数学AI</router-link>
       <router-link to="/mistakes">错题整理</router-link>
       <div class="nav-right" id="nav-right">
+        <button class="nav-queue-btn" @click="pqPanelVisible = true" title="打印队列">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="mergeIcon"></svg>
+          <span class="nav-queue-badge" v-if="pqCount > 0">{{ pqCount }}</span>
+        </button>
         <span class="nav-user" v-if="username" :title="username">{{ username }}</span>
         <button class="nav-login-btn" v-if="!username" @click="openAuth">登录</button>
         <button class="nav-logout-btn" v-if="username" @click="doLogout">退出</button>
@@ -55,13 +59,20 @@
       </keep-alive>
     </router-view>
     </div>
+
+    <PrintQueuePanel />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
 import Landing from './views/Landing.vue'
+import PrintQueuePanel from './components/PrintQueuePanel.vue'
+import { usePrintQueue } from './composables/usePrintQueue.js'
 import { sendCode, register, login, setAuth, clearAuth, getUsername } from './api/auth.js'
+
+const { count: pqCount, panelVisible: pqPanelVisible } = usePrintQueue()
+const mergeIcon = '<path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22"/><path d="m20 22-5-5"/>'
 
 const showLanding = ref(!localStorage.getItem('mf_visited'))
 
@@ -209,6 +220,30 @@ body {
   cursor: pointer;
 }
 .nav-logout-btn:hover { color: #f56c6c; border-color: #f56c6c; }
+
+.nav-queue-btn {
+  position: relative;
+  width: 34px; height: 34px;
+  border: none; background: transparent;
+  border-radius: 8px;
+  color: #909399;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.nav-queue-btn:hover { background: #f0f2f5; color: #409eff; }
+.nav-queue-badge {
+  position: absolute;
+  top: 0; right: 0;
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  background: #f56c6c; color: #fff;
+  font-size: 10px; font-weight: 700;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+  transform: translate(25%, -25%);
+}
 
 .auth-overlay {
   position: fixed; inset: 0;

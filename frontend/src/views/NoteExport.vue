@@ -13,7 +13,18 @@
              @click="switchNote(note)">
           <span class="item-dot" :style="{ background: noteColor(note.id) }"></span>
           <span class="item-title">{{ note.title }}</span>
+          <span class="item-more" @click.stop="toggleNoteMenu(note.id)" title="更多">
+            <svg v-bind="svg24" v-html="I.ellipsis" width="15" height="15"></svg>
+          </span>
           <span class="del" @click.stop="deleteNote(note.id)">×</span>
+
+          <!-- Dropdown menu -->
+          <div class="item-menu" v-if="menuNoteId === note.id" @click.stop>
+            <div class="item-menu-item" @click="addToQueueFromSidebar(note)">
+              <svg width="14" height="14" v-bind="svg24" v-html="I.mergeExport"></svg>
+              <span>加入打印队列</span>
+            </div>
+          </div>
         </div>
       </div>
       <Teleport to="#nav-right">
@@ -213,6 +224,7 @@ import katex from 'katex'
 import { I } from '../icons.js'
 import { exportPdf as exportPdfApi } from '../api/pdf.js'
 import { useToast } from '../composables/useToast.js'
+import { usePrintQueue } from '../composables/usePrintQueue.js'
 import ToastOverlay from '../components/ToastOverlay.vue'
 import 'katex/dist/katex.min.css'
 
@@ -233,6 +245,7 @@ const svg1024 = {
 
 // ---- Toast ----
 const { visible: toastVisible, message: toastMsg, type: toastType, show: showToast } = useToast()
+const { add: addToQueue } = usePrintQueue()
 
 // ---- Notes ----
 const notes = ref([])
@@ -1128,9 +1141,11 @@ async function exportPdf() {
   try {
     const html = buildExportHtml()
     const grid = getGridParams()
+    console.log('[exportPdf] grid params:', JSON.stringify(grid), 'autoBlank:', autoBlank.value)
     const blob = await exportPdfApi(html, false,
       grid ? grid.type : null,
-      grid ? grid.color : null)
+      grid ? grid.color : null,
+      autoBlank.value)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -1144,6 +1159,38 @@ async function exportPdf() {
     console.error('PDF导出错误:', e)
     showToast('导出失败: ' + (e.message || '未知错误'), 'error')
   }
+}
+
+function addToPrintQueueHandler() {
+  syncEditorToNote()
+  const html = buildExportHtml()
+  const grid = getGridParams()
+  console.log('[addToQueue] grid params:', JSON.stringify(grid))
+  addToQueue({
+    source: 'note',
+    title: currentTitle.value,
+    html,
+    landscape: false,
+    gridType: grid ? grid.type : null,
+    gridColor: grid ? grid.color : null
+  })
+  showToast('已加入打印队列', 'success')
+}
+
+// ── Sidebar ⋮ menu ──
+const menuNoteId = ref(null)
+
+function toggleNoteMenu(id) {
+  menuNoteId.value = menuNoteId.value === id ? null : id
+}
+
+async function addToQueueFromSidebar(note) {
+  menuNoteId.value = null
+  if (note.id !== currentId.value) {
+    switchNote(note)
+    await nextTick()
+  }
+  addToPrintQueueHandler()
 }
 
 function exportWord() {
@@ -1194,12 +1241,18 @@ onMounted(() => {
   }
   gridMode.value = true
   document.addEventListener('selectionchange', updateFormatStates)
+  document.addEventListener('click', closeNoteMenu)
   nextTick(() => updateIsEmpty())
 })
 
 onUnmounted(() => {
   document.removeEventListener('selectionchange', updateFormatStates)
+  document.removeEventListener('click', closeNoteMenu)
 })
+
+function closeNoteMenu() {
+  menuNoteId.value = null
+}
 </script>
 
 <style scoped>
@@ -1320,6 +1373,7 @@ onUnmounted(() => {
 #noteList::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 2px; }
 
 .item {
+  position: relative;
   padding: 8px 10px;
   margin-bottom: 2px;
   border-radius: 8px;
@@ -1343,6 +1397,40 @@ onUnmounted(() => {
 .del { color: #ccc; cursor: pointer; font-size: 14px; flex-shrink: 0; opacity: 0; transition: all 0.15s; }
 .item:hover .del { opacity: 1; }
 .del:hover { color: #f56c6c; }
+
+.item-more {
+  color: #ccc; cursor: pointer; flex-shrink: 0;
+  opacity: 0; transition: opacity 0.15s, color 0.15s;
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 4px;
+}
+.item:hover .item-more { opacity: 1; }
+.item-more:hover { color: #409eff; }
+
+.item-menu {
+  position: absolute;
+  top: 100%; right: 28px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  border: 1px solid #eee;
+  z-index: 50;
+  min-width: 140px;
+  padding: 4px 0;
+  animation: menu-in .15s ease;
+}
+@keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+.item-menu-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #303133;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .1s;
+}
+.item-menu-item:hover { color: #409eff; }
 
 /* ---- Main area ---- */
 .main-area {

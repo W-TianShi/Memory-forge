@@ -5,6 +5,7 @@ public class PdfExportRequest {
     private boolean landscape;
     private String gridType;   // "grid" | "dot" | "iso" | "eng-solid" | "eng-dashed" | "hex" | null
     private String gridColor;  // hex like "#d2d2d2" or null for default
+    private boolean autoBlank;  // append a blank page with grid when page count is odd
 
     public String getHtml() { return html; }
     public void setHtml(String html) { this.html = html; }
@@ -17,4 +18,7 @@ public class PdfExportRequest {
 
     public String getGridColor() { return gridColor; }
     public void setGridColor(String gridColor) { this.gridColor = gridColor; }
+
+    public boolean isAutoBlank() { return autoBlank; }
+    public void setAutoBlank(boolean autoBlank) { this.autoBlank = autoBlank; }
 }
