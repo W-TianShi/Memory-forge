@@ -59,6 +59,15 @@ export const I = {
   hexDots:     '<circle cx="12" cy="3" r="1.5"/><circle cx="4" cy="7" r="1.5"/><circle cx="20" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="4" cy="17" r="1.5"/><circle cx="20" cy="17" r="1.5"/><circle cx="12" cy="21" r="1.5"/>',
   mergeExport: '<path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22"/><path d="m20 22-5-5"/>',
   ellipsis:    '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  // 出稿工坊
+  workshop:    '<path d="M20 7h-6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3v4"/><path d="M16 21v-2"/><path d="M6 17V7a1 1 0 0 1 1-1h1"/><path d="M6 21v-4"/><rect x="4" y="3" width="4" height="4" rx="1"/><circle cx="6" cy="12" r="1.5"/>',
+  addText:     '<path d="M3 7h4l1-4h2l1 4h4"/><path d="M7 7v12"/><path d="M3 19h8"/><rect x="14" y="8" width="7" height="7" rx="1"/><path d="M16 11h3"/><path d="M17.5 8v7"/><line x1="17" y1="22" x2="17" y2="17"/>',
+  zoomIn:      '<circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/>',
+  zoomOut:     '<circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/>',
+  sun:         '<circle cx="12" cy="12" r="5"/><line x1="12" x2="12" y1="1" y2="3"/><line x1="12" x2="12" y1="21" y2="23"/><line x1="4.22" x2="5.64" y1="4.22" y2="5.64"/><line x1="18.36" x2="19.78" y1="18.36" y2="19.78"/><line x1="1" x2="3" y1="12" y2="12"/><line x1="21" x2="23" y1="12" y2="12"/><line x1="4.22" x2="5.64" y1="19.78" y2="18.36"/><line x1="18.36" x2="19.78" y1="5.64" y2="4.22"/>',
+  moon:        '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  workshopExport: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  chevronLeft:  '<polyline points="15,18 9,12 15,6"></polyline>',
 }
 
 export const I1024 = new Set(['exportPdf', 'exportWord', 'coverBoard'])

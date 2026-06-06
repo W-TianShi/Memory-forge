@@ -3,12 +3,14 @@ import WordMemory from '../views/WordMemory.vue'
 import NoteExport from '../views/NoteExport.vue'
 import MathAI from '../views/MathAI.vue'
 import MistakesBook from '../views/MistakesBook.vue'
+import ExportWorkshop from '../views/ExportWorkshop.vue'
 
 const routes = [
   { path: '/', name: 'NoteExport', component: NoteExport },
   { path: '/words', name: 'WordMemory', component: WordMemory },
   { path: '/math-ai', name: 'MathAI', component: MathAI },
   { path: '/mistakes', name: 'MistakesBook', component: MistakesBook },
+  { path: '/workshop', name: 'ExportWorkshop', component: ExportWorkshop },
 ]
 
 const router = createRouter({

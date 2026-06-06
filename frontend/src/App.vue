@@ -6,6 +6,7 @@
       <router-link to="/words">单词纸</router-link>
       <router-link to="/math-ai">数学AI</router-link>
       <router-link to="/mistakes">错题整理</router-link>
+      <router-link to="/workshop">出稿工坊</router-link>
       <div class="nav-right" id="nav-right">
         <button class="nav-queue-btn" @click="pqPanelVisible = true" title="打印队列">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="mergeIcon"></svg>
@@ -54,7 +55,7 @@
 
     <div class="page-wrap">
     <router-view v-slot="{ Component }">
-      <keep-alive :include="['NoteExport', 'WordMemory', 'MathAI', 'MistakesBook']">
+      <keep-alive :include="['NoteExport', 'WordMemory', 'MathAI', 'MistakesBook', 'ExportWorkshop', 'TemplatePaper']">
         <component :is="Component" />
       </keep-alive>
     </router-view>

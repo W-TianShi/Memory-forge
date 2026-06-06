@@ -139,6 +139,10 @@
           <svg v-bind="svg1024" v-html="I.coverBoard"></svg>
         </div>
         <div class="tb-sep"></div>
+        <div class="icon-btn" title="自由文字模式" @click="toggleFreeTextMode" :class="{ active: freeTextMode }">
+          <svg v-bind="svg24" v-html="I.addText"></svg>
+        </div>
+        <div class="tb-sep"></div>
         <div class="icon-btn" title="网格纸模式" @click="toggleGrid" :class="{ active: gridMode }">
           <svg v-bind="svg24" v-html="I.gridPaper"></svg>
         </div>
@@ -161,11 +165,58 @@
       </div>
 
       <!-- 编辑器纸板 -->
-      <div class="editor-wrap">
+      <div class="editor-wrap" :class="{ 'ft-active': freeTextMode }"
+           @mousedown="onEditorWrapMousedown">
         <div id="editor" ref="editorRef" contenteditable="true"
-             @input="onEditorInput" @paste="onPaste" @keydown="onEditorKeydown" @click="onEditorClick" @mousedown="onEditorMousedown" @mouseover="onEditorMouseover"
+             @input="onEditorInput" @paste="onPaste" @keydown="onEditorKeydown" @click="onEditorClick" @mousedown="onEditorMousedown" @mouseover="onEditorMouseover" @scroll="onEditorScroll"
              :class="{ 'is-empty': isEditorEmpty, 'show-all': showAnswer, 'grid-paper': gridMode, 'dot-grid': dotGridMode, 'iso-grid': isoGridMode, 'eng-grid-solid': engGridMode === 'solid', 'eng-grid-dashed': engGridMode === 'dashed', 'hex-dots': hexDotGridMode }"
              :style="{ '--answer-color': answerColor }"></div>
+        <!-- Free text overlay — outside editor, scroll-synced via transform -->
+        <div class="ft-layer" ref="ftLayerRef" v-if="freeTextBlocks.length > 0">
+          <div class="ft-inner" :style="{ transform: `translateY(-${ftScrollY}px)` }">
+          <div v-for="b in freeTextBlocks" :key="b.id"
+               class="ft-blk"
+               :class="{ 'ft-sel': ftSel === b.id, 'ft-edit': ftEdit === b.id }"
+               :style="{ left: b.x + 'mm', top: b.y + 'mm', fontSize: b.fontSize + 'pt', color: b.color, ...ftEditStyle(b) }"
+               @mousedown.left.stop="onFtDown($event, b)"
+               @click.stop="onFtClick(b)"
+               @dblclick.stop="startFtEdit(b)">
+            <span v-if="ftEdit !== b.id && ftSel !== b.id" class="ft-text" :class="{ 'ft-empty': !b.text }" v-html="b.html || b.text"></span>
+            <div v-else class="ft-edit-wrap" :style="ftEditStyle(b)">
+              <div class="ft-handle">
+                <span v-for="i in 6" :key="i" class="ft-dot"></span>
+              </div>
+              <div class="ft-dash-box">
+                <div v-if="ftEdit === b.id" class="ft-inp" contenteditable="true"
+                     @input="e => { b.text = e.target.textContent || ''; b.html = normalizeHtml(e.target.innerHTML || '') }"
+                     @paste="onFtPaste"
+                     @keydown.escape.stop="onFtEscapeEdit(b)"
+                     :ref="el => { if (el && !el.textContent.trim() && b.html) el.innerHTML = b.html }"
+                     data-placeholder="在此处开始键入…"></div>
+                <span v-else class="ft-text-inner" v-html="b.html || b.text"></span>
+                <span class="ft-dash-rt"></span>
+                <span class="ft-dash-rb"></span>
+                <span class="ft-circle" @mousedown.left.stop="onFtResizeDown($event, b)"></span>
+                <span class="ft-rsz ft-rsz-tr" @mousedown.left.stop="onFtResizeDown($event, b)"></span>
+                <span class="ft-rsz ft-rsz-br" @mousedown.left.stop="onFtResizeDown($event, b)"></span>
+              </div>
+            </div>
+          </div>
+          </div> <!-- /ft-inner -->
+        </div>
+      </div>
+
+      <!-- Free text property popup -->
+      <div class="ft-pop" v-if="ftSelData && ftPopStyle" :style="ftPopStyle" @mousedown.stop>
+        <button @click="ftChgSize(-2)">A⁻</button>
+        <span class="ft-pop-sz">{{ ftSelData.fontSize }}pt</span>
+        <button @click="ftChgSize(2)">A⁺</button>
+        <span class="ft-pop-div">|</span>
+        <span v-for="c in ftColors" :key="c" class="ft-pop-c" :class="{ on: ftSelData.color === c }"
+              :style="{ background: c }" @click="ftSelData.color = c"></span>
+        <input type="color" class="ft-pop-pk" :value="ftSelData.color" @input="ftSelData.color = $event.target.value" />
+        <span class="ft-pop-div">|</span>
+        <button class="ft-pop-del" @click="ftDelSel">🗑</button>
       </div>
 
     </div>
@@ -292,6 +343,202 @@ function toggleHexDotGrid() {
   if (hexDotGridMode.value) { gridMode.value = false; dotGridMode.value = false; isoGridMode.value = false; engGridMode.value = false }
   syncGridBg()
 }
+
+// ── Free text mode (Edge-style "Add Text" on paper) ──
+const freeTextMode = ref(false)
+const freeTextBlocks = ref([])  // [{ id, x(mm), y(mm), text, fontSize(pt), color }]
+const ftLayerRef = ref(null)
+const ftScrollY = ref(0)
+
+function onEditorScroll() {
+  if (editorRef.value) {
+    ftScrollY.value = editorRef.value.scrollTop
+  }
+}
+const ftSel = ref(null)
+const ftEdit = ref(null)
+const ftDrag = ref(null)
+const ftResize = ref(null)
+const ftJustCreated = ref(false)
+const ftColors = ['#333333', '#000000', '#e74c3c', '#e67e22', '#2ecc71', '#3498db', '#9b59b6', '#1abc9c']
+
+const ftSelData = computed(() => freeTextBlocks.value.find(b => b.id === ftSel.value) || null)
+const ftPopStyle = computed(() => {
+  if (!ftSel.value) return null
+  const el = document.querySelector('.ft-blk.ft-sel')
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  return { left: Math.max(10, r.left) + 'px', top: Math.max(10, r.top - 42) + 'px' }
+})
+
+function toggleFreeTextMode() {
+  freeTextMode.value = !freeTextMode.value
+  ftSel.value = null; ftEdit.value = null
+}
+
+function createFtBlock(xMm, yMm) {
+  const b = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    x: Math.max(0, Math.min(xMm, 210 - 20)),
+    y: Math.max(0, Math.min(yMm, 297 - 10)),
+    text: '', html: '', fontSize: 12, color: '#333333', width: null, height: null
+  }
+  freeTextBlocks.value.push(b)
+  ftSel.value = b.id; ftEdit.value = b.id
+  freeTextMode.value = false
+  ftJustCreated.value = true
+  nextTick(() => {
+    const inps = document.querySelectorAll('.ft-inp')
+    const last = inps[inps.length - 1]
+    if (last) last.focus()
+    setTimeout(() => { ftJustCreated.value = false }, 300)
+  })
+}
+
+function onFtDown(e, b) {
+  ftSel.value = b.id
+  // Allow drag from handle even while editing; clicks in the input pass through for text selection
+  if (ftEdit.value === b.id && !e.target.closest('.ft-handle')) return
+  e.preventDefault()
+  ftDrag.value = { b, sx: e.clientX, sy: e.clientY, ox: b.x, oy: b.y }
+}
+
+function onFtClick(b) {
+  if (ftSel.value === b.id) {
+    // Second click on same block → enter edit mode
+    startFtEdit(b)
+  } else {
+    ftSel.value = b.id
+  }
+}
+
+function startFtEdit(b) {
+  ftEdit.value = b.id; ftSel.value = b.id
+  nextTick(() => {
+    const inps = document.querySelectorAll('.ft-inp')
+    for (const inp of inps) { if (inp.textContent === b.text) { inp.focus(); return } }
+  })
+}
+
+function finishFtEdit(b) {
+  ftEdit.value = null
+  ftSel.value = null
+  if (!b.text.trim()) {
+    freeTextBlocks.value = freeTextBlocks.value.filter(x => x.id !== b.id)
+  }
+  saveFreeBlocks()
+}
+
+function onFtPaste(e) {
+  e.preventDefault()
+  const html = (e.clipboardData || window.clipboardData).getData('text/html')
+  const text = (e.clipboardData || window.clipboardData).getData('text/plain')
+  const inp = e.target
+  if (html) {
+    document.execCommand('insertHTML', false, normalizeHtml(html))
+    // Clean up contenteditable's extra wrapping after paste
+    nextTick(() => {
+      inp.innerHTML = normalizeHtml(inp.innerHTML)
+      const b = freeTextBlocks.value.find(x => x.id === ftEdit.value)
+      if (b) { b.text = inp.textContent || ''; b.html = inp.innerHTML || '' }
+    })
+  } else if (text) {
+    document.execCommand('insertText', false, text)
+  }
+}
+
+function onFtEscapeEdit(b) {
+  ftEdit.value = null
+  // Keep ftSel — stays selected with chrome visible
+}
+
+function ftEditStyle(b) {
+  const s = {}
+  if (b.width) s.width = b.width + 'mm'
+  if (b.height) s.minHeight = b.height + 'mm'
+  return s
+}
+function ftChgSize(d) { if (ftSelData.value) ftSelData.value.fontSize = Math.max(8, Math.min(72, ftSelData.value.fontSize + d)) }
+function ftDelSel() {
+  if (!ftSel.value) return
+  freeTextBlocks.value = freeTextBlocks.value.filter(b => b.id !== ftSel.value)
+  ftSel.value = null
+  saveFreeBlocks()
+}
+
+// Load/save freeTextBlocks with note
+function loadFreeBlocks() {
+  freeTextBlocks.value = currentNote.value?.freeBlocks || []
+}
+function saveFreeBlocks() {
+  const note = currentNote.value
+  if (note) note.freeBlocks = JSON.parse(JSON.stringify(freeTextBlocks.value))
+  saveNotes()
+}
+
+function onFtResizeDown(e, b) {
+  e.preventDefault()
+  const pxPerMm = 96 / 25.4
+  const editWrap = e.target.closest('.ft-edit-wrap')
+  const ow = b.width ? b.width * pxPerMm : (editWrap ? editWrap.offsetWidth : 80)
+  const oh = b.height ? b.height * pxPerMm : (editWrap ? editWrap.offsetHeight : 30)
+  const el = e.target.closest('[class*="ft-rsz-"]')
+  const corner = el ? (el.classList.contains('ft-rsz-tr') ? 'tr' : 'br') : 'r'
+  ftResize.value = { b, sx: e.clientX, sy: e.clientY, ow, oh, corner }
+}
+
+// Global drag/resize handler for free text blocks
+function onFtMove(e) {
+  const pxPerMm = 96 / 25.4
+  if (ftResize.value) {
+    const { b, sx, sy, ow, oh, corner } = ftResize.value
+    const dx = e.clientX - sx
+    const dy = e.clientY - sy
+    if (corner === 'r') {
+      b.width = Math.max(15, (ow + dx) / pxPerMm)
+    } else if (corner === 'tr') {
+      b.width = Math.max(15, (ow + Math.max(dx, -dy)) / pxPerMm)
+      b.height = Math.max(12, (oh - dy) / pxPerMm)
+    } else if (corner === 'br') {
+      b.width = Math.max(15, (ow + Math.max(dx, dy)) / pxPerMm)
+      b.height = Math.max(12, (oh + dy) / pxPerMm)
+    }
+    return
+  }
+  if (!ftDrag.value) return
+  const { b, sx, sy, ox, oy } = ftDrag.value
+  b.x = Math.max(0, Math.min(210 - 20, ox + (e.clientX - sx) / pxPerMm))
+  b.y = Math.max(0, Math.min(297 - 10, oy + (e.clientY - sy) / pxPerMm))
+}
+
+// ── Export: inject free text blocks ──
+function buildFreeTextHtml() {
+  if (freeTextBlocks.value.length === 0) return ''
+  // Editor padding: 20mm L, 18mm T. PDF @page default margin: 15mm.
+  // Offset blocks to compensate the 5mm/3mm coordinate system difference.
+  const dx = 5, dy = 3
+  let h = ''
+  for (const b of freeTextBlocks.value) {
+    const w = b.width ? `width:${b.width}mm;` : ''
+    const mh = b.height ? `min-height:${b.height}mm;` : ''
+    h += `<div style="position:absolute;left:${b.x + dx}mm;top:${b.y + dy}mm;font-size:${b.fontSize}pt;color:${b.color};font-family:'SimSun','Microsoft YaHei',sans-serif;white-space:pre-wrap;word-break:break-word;z-index:10;${w}${mh}">${b.html || escHtmlFn(b.text)}</div>`
+  }
+  return h
+}
+
+function escHtmlFn(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+// Normalize contenteditable innerHTML: convert <div> wrappers (Enter key) to <br>
+function normalizeHtml(html) {
+  // Same fix as commit 575d1e0: newlines between HTML tags render as extra blank lines
+  return html
+    .replace(/>\n+</g, '><')
+    .replace(/<div>(.*?)<\/div>/gi, '$1<br>')
+    .replace(/<p>(.*?)<\/p>/gi, '$1<br>')
+    .replace(/^(<br\s*\/?\s*>|\s)+/, '')   // strip leading blank lines
+    .replace(/(<br\s*\/?\s*>|\s)+$/, '')   // strip trailing blank lines
+}
+
 const NOTE_COLORS = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399', '#5470c6', '#91cc75', '#fc8452', '#ee6666', '#73c0de']
 function noteColor(id) { return NOTE_COLORS[id % NOTE_COLORS.length] }
 const currentNote = computed(() => notes.value.find(n => n.id === currentId.value))
@@ -302,7 +549,7 @@ function saveNotes() {
 }
 function syncEditorToNote() {
   const note = notes.value.find(n => n.id === currentId.value)
-  if (note && editorRef.value) note.content = editorRef.value.innerHTML
+  if (note && editorRef.value) { note.content = editorRef.value.innerHTML; saveFreeBlocks() }
 }
 function updateIsEmpty() {
   if (editorRef.value) isEditorEmpty.value = !editorRef.value.textContent?.trim()
@@ -423,7 +670,7 @@ function onPaste(e) {
 
 function loadNoteContent(note) {
   nextTick(() => {
-    if (editorRef.value) { editorRef.value.innerHTML = note?.content || ''; updateIsEmpty() }
+    if (editorRef.value) { editorRef.value.innerHTML = note?.content || ''; updateIsEmpty(); loadFreeBlocks() }
   })
 }
 
@@ -785,6 +1032,21 @@ function makeOrderedList() {
   showToast('已切换有序列表')
 }
 
+function onEditorWrapMousedown(e) {
+  if (!freeTextMode.value) return
+  if (e.button !== 0) return
+  // Don't intercept clicks on existing blocks
+  if (e.target.closest('.ft-blk') || e.target.closest('.ft-inp')) return
+  e.preventDefault()
+  const ed = editorRef.value
+  if (!ed) return
+  const rect = ed.getBoundingClientRect()
+  const pxPerMm = 96 / 25.4
+  const xMm = (e.clientX - rect.left) / pxPerMm - 20
+  const yMm = (e.clientY - rect.top) / pxPerMm - 18
+  createFtBlock(xMm, yMm)
+}
+
 function onEditorMousedown(e) {
   if (!editorRef.value?.textContent?.trim() && e.target === editorRef.value) {
     e.preventDefault()
@@ -1087,11 +1349,11 @@ function buildExportHtml() {
   ${pageCss}
   html, body {
     margin: 0; padding: 0;
-    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     font-size: 15px; line-height: 1.9;
     font-weight: normal;
     color: #000;
-    white-space: pre-wrap; word-wrap: break-word;
+    white-space: pre-wrap; word-wrap: break-word; word-break: break-all;
     background: transparent;
   }
   /* heading sizes — match the editor exactly */
@@ -1130,7 +1392,7 @@ function buildExportHtml() {
   td { border: 1px solid #ccc; padding: 6px 10px; }
 </style>
 </head>
-<body>${clone.innerHTML}</body>
+<body><div style="position:relative">${buildFreeTextHtml()}${clone.innerHTML}</div></body>
 </html>`
 }
 
@@ -1242,13 +1504,61 @@ onMounted(() => {
   gridMode.value = true
   document.addEventListener('selectionchange', updateFormatStates)
   document.addEventListener('click', closeNoteMenu)
+  document.addEventListener('mousemove', onFtMove)
+  document.addEventListener('mouseup', () => {
+    if (ftDrag.value || ftResize.value) saveFreeBlocks()
+    ftDrag.value = null; ftResize.value = null
+  })
+  document.addEventListener('keydown', onFtKey)
+  document.addEventListener('click', onDocClick)
   nextTick(() => updateIsEmpty())
 })
 
 onUnmounted(() => {
   document.removeEventListener('selectionchange', updateFormatStates)
   document.removeEventListener('click', closeNoteMenu)
+  document.removeEventListener('mousemove', onFtMove)
+  document.removeEventListener('mouseup', () => {
+    if (ftDrag.value || ftResize.value) saveFreeBlocks()
+    ftDrag.value = null; ftResize.value = null
+  })
+  document.removeEventListener('keydown', onFtKey)
+  document.removeEventListener('click', onDocClick)
 })
+
+function onFtKey(e) {
+  if (e.key === 'Escape') {
+    if (ftEdit.value) return // handled by @keydown.escape on input
+    ftSel.value = null
+    return
+  }
+  // Delete/Backspace on selected block (only when no input is focused)
+  if (!ftSel.value || ftEdit.value) return
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return
+    e.preventDefault()
+    ftDelSel()
+  }
+}
+
+function onDocClick(e) {
+  if (ftJustCreated.value) return
+  // Click on popup toolbar — stay
+  if (e.target.closest('.ft-pop')) return
+  // If editing: only exit when clicking outside the currently editing block
+  if (ftEdit.value) {
+    const editEl = document.querySelector('.ft-blk.ft-edit')
+    if (editEl && editEl.contains(e.target)) return // click inside same block, stay
+    // Click outside — finish (b.text/b.html already up to date from @input)
+    const b = freeTextBlocks.value.find(x => x.id === ftEdit.value)
+    if (b) finishFtEdit(b)
+    return
+  }
+  // Not editing, but selected — deselect if clicking outside any block
+  if (ftSel.value && !e.target.closest('.ft-blk')) {
+    ftSel.value = null
+  }
+}
 
 function closeNoteMenu() {
   menuNoteId.value = null
@@ -1537,6 +1847,7 @@ function closeNoteMenu() {
 }
 
 #editor {
+  position: relative; /* needed for absolute-positioned free text blocks */
   flex: 1;
   border: none;
   padding: 18mm 20mm;
@@ -1712,4 +2023,177 @@ function closeNoteMenu() {
 .pdf-dlg-btn-cancel:hover { background: #e8e8e8; }
 .pdf-dlg-btn-ok { background: #409eff; color: #fff; }
 .pdf-dlg-btn-ok:hover { background: #337ecc; }
+
+/* ── Free Text Mode ── */
+.editor-wrap { position: relative; }
+.editor-wrap.ft-active { cursor: crosshair; }
+/* Free text layer — overlays editor, scroll-synced via transform */
+.ft-layer {
+  position: absolute; inset: 0; z-index: 5;
+  overflow: hidden;
+  padding: 18mm 20mm;
+  pointer-events: none;
+}
+.ft-inner {
+  position: relative;
+  width: 100%; height: 100%;
+  pointer-events: none; /* pass through empty areas */
+}
+
+/* Free text blocks */
+.ft-blk {
+  position: absolute; z-index: 5; pointer-events: auto;
+  padding: 2px 6px;
+  border: 1px solid transparent; border-radius: 2px;
+  user-select: none;
+  white-space: pre-wrap; word-break: break-word;
+  min-width: 1em; line-height: 1.4;
+  font-family: "SimSun","Microsoft YaHei",sans-serif;
+  cursor: move;
+}
+.ft-blk:hover {}
+.ft-blk.ft-sel {}
+.ft-blk.ft-edit {
+  padding: 0; border: none; border-radius: 4px;
+  background: transparent; cursor: default;
+  z-index: 10; min-width: auto;
+  box-shadow: 0 2px 12px rgba(0,0,0,.15);
+  font-family: "SimSun","Microsoft YaHei",sans-serif;
+}
+
+/* ── Edge-style edit wrapper ── */
+.ft-edit-wrap {
+  display: flex; align-items: stretch;
+  min-height: 1.6em;
+}
+
+/* Blue left handle */
+.ft-handle {
+  width: 1em;
+  min-width: 15px;
+  background: #0078e6;
+  border-radius: 4px 0 0 4px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: 2px;
+  padding: 3px 3px;
+  cursor: move;
+  flex-shrink: 0;
+}
+.ft-dot {
+  width: 2.5px; height: 2.5px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+/* Dashed-border text area */
+.ft-dash-box {
+  position: relative;
+  flex: 1;
+  min-width: 4em;
+  border-top: 2px dashed #0078e6;
+  border-bottom: 2px dashed #0078e6;
+  border-left: 2px dashed #0078e6;
+  padding: 2px 8px;
+  display: flex; align-items: center;
+  background: rgba(255,255,255,.97);
+}
+
+/* Right-edge dashed segments (top & bottom, circle in middle) */
+.ft-dash-rt {
+  position: absolute; right: 0; top: 0;
+  width: 2px; height: calc(50% - 10px);
+  background: repeating-linear-gradient(to bottom, #0078e6 0 4px, transparent 4px 8px);
+}
+.ft-dash-rb {
+  position: absolute; right: 0; bottom: 0;
+  width: 2px; height: calc(50% - 10px);
+  background: repeating-linear-gradient(to bottom, #0078e6 0 4px, transparent 4px 8px);
+}
+
+/* Right-edge diamond (also resize handle) */
+.ft-circle {
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  width: 12px; height: 12px;
+  border: 2.5px solid #0078e6;
+  border-radius: 2px;
+  background: #fff;
+  cursor: ew-resize;
+}
+/* Corner resize handles */
+.ft-rsz {
+  position: absolute;
+  width: 10px; height: 10px;
+  border: 2px solid #0078e6;
+  border-radius: 2px;
+  background: #fff;
+}
+.ft-rsz-tr {
+  top: -5px; right: -5px;
+  cursor: ne-resize;
+}
+.ft-rsz-br {
+  bottom: -5px; right: -5px;
+  cursor: se-resize;
+}
+
+/* Text input */
+.ft-inp {
+  outline: none; min-width: 4em; min-height: 1.2em;
+  white-space: pre-wrap; word-break: break-word;
+  flex: 1;
+}
+/* Placeholder for empty input */
+.ft-inp[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: #999;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Empty text display */
+.ft-text.ft-empty {
+  display: inline-block;
+  min-width: 3em; min-height: 1em;
+  opacity: 0.5;
+}
+
+/* Selected text (static, inside dash-box) */
+.ft-text-inner {
+  white-space: pre-wrap; word-break: break-word;
+  flex: 1;
+}
+
+/* Reset block-element margins from contenteditable HTML inside free text */
+.ft-text :deep(div), .ft-text :deep(p),
+.ft-text-inner :deep(div), .ft-text-inner :deep(p) {
+  margin: 0;
+}
+
+/* Free text property popup */
+.ft-pop {
+  position: fixed; z-index: 200;
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 10px; background: #fff; color: #202124;
+  border-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.25), 0 0 0 1px rgba(0,0,0,.08);
+  font-size: 12px;
+}
+.ft-pop button { width: 24px; height: 24px; border: 1px solid #dadce0; border-radius: 4px; background: #fff; color: #202124; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.ft-pop button:hover { background: #f1f3f4; }
+.ft-pop-sz { font-size: 12px; font-weight: 600; min-width: 28px; text-align: center; }
+.ft-pop-div { color: #dadce0; margin: 0 2px; }
+.ft-pop-c { width: 16px; height: 16px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+.ft-pop-c:hover { border-color: #409eff; }
+.ft-pop-c.on { border-color: #1a73e8; }
+.ft-pop-pk { width: 16px; height: 16px; border: none; border-radius: 50%; cursor: pointer; padding: 0; background: transparent; }
+.ft-pop-del { border: none !important; font-size: 14px !important; }
+.ft-pop-del:hover { background: #fef0f0 !important; color: #f56c6c !important; }
+
+@media print { .ft-overlay, .ft-pop { display: none; } }
 </style>

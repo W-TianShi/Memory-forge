@@ -78,6 +78,10 @@
         <button class="pq-btn pq-btn-merge" @click="doMerge" :disabled="merging">
           {{ merging ? '合并中...' : '合并下载' }}
         </button>
+        <button v-if="mergedPdfBase64" class="pq-btn pq-btn-workshop" @click="sendToWorkshop">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 7h-6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3v4"/><path d="M16 21v-2"/><path d="M6 17V7a1 1 0 0 1 1-1h1"/><path d="M6 21v-4"/><rect x="4" y="3" width="4" height="4" rx="1"/><circle cx="6" cy="12" r="1.5"/></svg>
+          送出稿工坊
+        </button>
       </div>
     </div>
 
@@ -93,11 +97,15 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { usePrintQueue } from '../composables/usePrintQueue.js'
 import { mergePdfs } from '../api/pdf.js'
 import { I, svg24Attrs } from '../icons.js'
 
+const router = useRouter()
 const svg24 = svg24Attrs
+
+const mergedPdfBase64 = ref(null)
 
 const { items, count, panelVisible, remove, move, insertBlank, clearAll } = usePrintQueue()
 
@@ -189,6 +197,8 @@ async function doMerge() {
     const blob = await mergePdfs(reqItems)
     const d = new Date()
     const ts = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`
+
+    // Download the merged PDF
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -198,6 +208,13 @@ async function doMerge() {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
 
+    // Also save as base64 for "Send to Workshop"
+    const reader = new FileReader()
+    reader.onload = () => {
+      mergedPdfBase64.value = reader.result.split(',')[1]
+    }
+    reader.readAsDataURL(blob)
+
     showToast('合并 PDF 下载成功', 'success')
   } catch (e) {
     console.error('Merge error:', e)
@@ -205,6 +222,19 @@ async function doMerge() {
   } finally {
     merging.value = false
   }
+}
+
+function sendToWorkshop() {
+  if (!mergedPdfBase64.value) return
+  const d = new Date()
+  const ts = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`
+  localStorage.setItem('mf-workshop-pdf', JSON.stringify({
+    title: `打印合集-${ts}`,
+    pdfBase64: mergedPdfBase64.value
+  }))
+  mergedPdfBase64.value = null
+  panelVisible.value = false
+  router.push('/workshop')
 }
 
 function sourceLabel(s) {
@@ -371,6 +401,12 @@ function gridLabel(g) {
 }
 .pq-btn-merge:hover { background: #337ecc; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(64,158,255,.4); }
 .pq-btn-merge:disabled { opacity: .6; transform: none; cursor: not-allowed; }
+.pq-btn-workshop {
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 14px; border: 1px solid #409eff; border-radius: 8px;
+  background: #ecf5ff; color: #409eff; font-size: 13px; cursor: pointer; transition: .15s;
+}
+.pq-btn-workshop:hover { background: #409eff; color: #fff; transform: translateY(-1px); }
 
 /* ── Toast ── */
 .pq-toast {
