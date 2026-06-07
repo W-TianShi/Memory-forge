@@ -183,22 +183,36 @@
                @dblclick.stop="startFtEdit(b)">
             <span v-if="ftEdit !== b.id && ftSel !== b.id" class="ft-text" :class="{ 'ft-empty': !b.text }" v-html="b.html || b.text"></span>
             <div v-else class="ft-edit-wrap" :style="ftEditStyle(b)">
-              <div class="ft-handle">
-                <span v-for="i in 6" :key="i" class="ft-dot"></span>
+              <!-- Inline formatting toolbar -->
+              <div class="ft-tbar" @mousedown.stop @click.stop>
+                <button @click="ftChgSize(-1)" title="缩小字号">A⁻</button>
+                <span class="ft-tbar-sz" title="字号">{{ b.fontSize }}pt</span>
+                <button @click="ftChgSize(1)" title="增大字号">A⁺</button>
+                <span class="ft-tbar-div">|</span>
+                <span v-for="c in ftColors" :key="c" class="ft-tbar-c" :class="{ on: b.color === c }"
+                      :style="{ background: c }" @click="b.color = c" :title="c"></span>
+                <input type="color" class="ft-tbar-pk" :value="b.color" @input="b.color = $event.target.value" title="自定义颜色" />
+                <span class="ft-tbar-div">|</span>
+                <button class="ft-tbar-del" @click="ftDelSel" title="删除">🗑</button>
               </div>
-              <div class="ft-dash-box">
-                <div v-if="ftEdit === b.id" class="ft-inp" contenteditable="true"
-                     @input="e => { b.text = e.target.textContent || ''; b.html = normalizeHtml(e.target.innerHTML || '') }"
-                     @paste="onFtPaste"
-                     @keydown.escape.stop="onFtEscapeEdit(b)"
-                     :ref="el => { if (el && !el.textContent.trim() && b.html) el.innerHTML = b.html }"
-                     data-placeholder="在此处开始键入…"></div>
-                <span v-else class="ft-text-inner" v-html="b.html || b.text"></span>
-                <span class="ft-dash-rt"></span>
-                <span class="ft-dash-rb"></span>
-                <span class="ft-circle" @mousedown.left.stop="onFtResizeDown($event, b)"></span>
-                <span class="ft-rsz ft-rsz-tr" @mousedown.left.stop="onFtResizeDown($event, b)"></span>
-                <span class="ft-rsz ft-rsz-br" @mousedown.left.stop="onFtResizeDown($event, b)"></span>
+              <div class="ft-edit-row">
+                <div class="ft-handle">
+                  <span v-for="i in 6" :key="i" class="ft-dot"></span>
+                </div>
+                <div class="ft-dash-box">
+                  <div v-if="ftEdit === b.id" class="ft-inp" contenteditable="true"
+                       @input="e => { b.text = e.target.textContent || ''; b.html = normalizeHtml(e.target.innerHTML || '') }"
+                       @paste="onFtPaste"
+                       @keydown.escape.stop="onFtEscapeEdit(b)"
+                       :ref="el => { if (el && !el.textContent.trim() && b.html) el.innerHTML = b.html }"
+                       data-placeholder="在此处开始键入…"></div>
+                  <span v-else class="ft-text-inner" v-html="b.html || b.text"></span>
+                  <span class="ft-dash-rt"></span>
+                  <span class="ft-dash-rb"></span>
+                  <span class="ft-circle" @mousedown.left.stop="onFtResizeDown($event, b)"></span>
+                  <span class="ft-rsz ft-rsz-tr" @mousedown.left.stop="onFtResizeDown($event, b)"></span>
+                  <span class="ft-rsz ft-rsz-br" @mousedown.left.stop="onFtResizeDown($event, b)"></span>
+                </div>
               </div>
             </div>
           </div>
@@ -206,18 +220,7 @@
         </div>
       </div>
 
-      <!-- Free text property popup -->
-      <div class="ft-pop" v-if="ftSelData && ftPopStyle" :style="ftPopStyle" @mousedown.stop>
-        <button @click="ftChgSize(-2)">A⁻</button>
-        <span class="ft-pop-sz">{{ ftSelData.fontSize }}pt</span>
-        <button @click="ftChgSize(2)">A⁺</button>
-        <span class="ft-pop-div">|</span>
-        <span v-for="c in ftColors" :key="c" class="ft-pop-c" :class="{ on: ftSelData.color === c }"
-              :style="{ background: c }" @click="ftSelData.color = c"></span>
-        <input type="color" class="ft-pop-pk" :value="ftSelData.color" @input="ftSelData.color = $event.target.value" />
-        <span class="ft-pop-div">|</span>
-        <button class="ft-pop-del" @click="ftDelSel">🗑</button>
-      </div>
+
 
     </div>
 
@@ -363,13 +366,7 @@ const ftJustCreated = ref(false)
 const ftColors = ['#333333', '#000000', '#e74c3c', '#e67e22', '#2ecc71', '#3498db', '#9b59b6', '#1abc9c']
 
 const ftSelData = computed(() => freeTextBlocks.value.find(b => b.id === ftSel.value) || null)
-const ftPopStyle = computed(() => {
-  if (!ftSel.value) return null
-  const el = document.querySelector('.ft-blk.ft-sel')
-  if (!el) return null
-  const r = el.getBoundingClientRect()
-  return { left: Math.max(10, r.left) + 'px', top: Math.max(10, r.top - 42) + 'px' }
-})
+
 
 function toggleFreeTextMode() {
   freeTextMode.value = !freeTextMode.value
@@ -468,7 +465,11 @@ function ftDelSel() {
 
 // Load/save freeTextBlocks with note
 function loadFreeBlocks() {
-  freeTextBlocks.value = currentNote.value?.freeBlocks || []
+  // Re-normalize old blocks that may have legacy HTML (e.g. <li> tags)
+  freeTextBlocks.value = (currentNote.value?.freeBlocks || []).map(b => {
+    if (b.html) b.html = normalizeHtml(b.html)
+    return b
+  })
 }
 function saveFreeBlocks() {
   const note = currentNote.value
@@ -512,31 +513,39 @@ function onFtMove(e) {
 }
 
 // ── Export: inject free text blocks ──
+// Editor padding: 20mm L, 18mm T. PDF @page default margin: 15mm.
+// Offset blocks to compensate the 5mm/3mm coordinate system difference.
 function buildFreeTextHtml() {
   if (freeTextBlocks.value.length === 0) return ''
-  // Editor padding: 20mm L, 18mm T. PDF @page default margin: 15mm.
-  // Offset blocks to compensate the 5mm/3mm coordinate system difference.
   const dx = 5, dy = 3
   let h = ''
   for (const b of freeTextBlocks.value) {
     const w = b.width ? `width:${b.width}mm;` : ''
     const mh = b.height ? `min-height:${b.height}mm;` : ''
-    h += `<div style="position:absolute;left:${b.x + dx}mm;top:${b.y + dy}mm;font-size:${b.fontSize}pt;color:${b.color};font-family:'SimSun','Microsoft YaHei',sans-serif;white-space:pre-wrap;word-break:break-word;z-index:10;${w}${mh}">${b.html || escHtmlFn(b.text)}</div>`
+    h += `<div class="ft-pdf" style="position:absolute;left:${b.x + dx}mm;top:${b.y + dy}mm;font-size:${b.fontSize}pt;color:${b.color};font-family:'SimSun','Microsoft YaHei',sans-serif;line-height:1.4;padding:2px 6px;white-space:pre-wrap;word-break:normal;overflow-wrap:break-word;z-index:10;${w}${mh}">${b.html || escHtmlFn(b.text)}</div>`
   }
   return h
 }
 
 function escHtmlFn(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
 
-// Normalize contenteditable innerHTML: convert <div> wrappers (Enter key) to <br>
+// Normalize contenteditable innerHTML: flatten all block elements to <br>-separated inline text.
+// Strategy (same as commit 575d1e0): eliminate inter-tag whitespace that causes blank lines,
+// then convert every block-boundary to <br> and strip all block tags.
 function normalizeHtml(html) {
-  // Same fix as commit 575d1e0: newlines between HTML tags render as extra blank lines
+  const BLOCK = 'div|p|li|ul|ol|h[1-6]|blockquote'
   return html
+    // Fix from commit 575d1e0: \n between tags renders as unwanted blank lines
     .replace(/>\n+</g, '><')
-    .replace(/<div>(.*?)<\/div>/gi, '$1<br>')
-    .replace(/<p>(.*?)<\/p>/gi, '$1<br>')
-    .replace(/^(<br\s*\/?\s*>|\s)+/, '')   // strip leading blank lines
-    .replace(/(<br\s*\/?\s*>|\s)+$/, '')   // strip trailing blank lines
+    // Any closing block tag followed by an opening block tag → single <br> between
+    .replace(new RegExp(`<\\/(?:${BLOCK})>\\s*<(?:${BLOCK})[^>]*>`, 'gi'), '<br>')
+    // Strip ALL remaining block-level tags (text content is preserved)
+    .replace(new RegExp(`<\\/?(?:${BLOCK})[^>]*>`, 'gi'), '')
+    // Collapse 3+ consecutive <br> to at most 2
+    .replace(/(<br\s*\/?\s*>\s*){3,}/gi, '<br><br>')
+    // Strip leading / trailing
+    .replace(/^(<br\s*\/?\s*>|\s)+/, '')
+    .replace(/(<br\s*\/?\s*>|\s)+$/, '')
 }
 
 const NOTE_COLORS = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399', '#5470c6', '#91cc75', '#fc8452', '#ee6666', '#73c0de']
@@ -1390,9 +1399,26 @@ function buildExportHtml() {
   table { border-collapse: collapse; margin: 8px 0; font-size: 14px; }
   th { border: 1px solid #ccc; padding: 6px 10px; background: transparent; text-align: left; font-weight: 600; }
   td { border: 1px solid #ccc; padding: 6px 10px; }
+	/* Free text blocks — isolate from global rich-text rules.
+	   In the editor these blocks are outside #editor so :deep() styles don't apply.
+	   In the PDF the global h1-h6/p/li/etc rules would leak in — reset them to inherit. */
+	.ft-pdf, .ft-pdf h1, .ft-pdf h2, .ft-pdf h3, .ft-pdf h4, .ft-pdf h5, .ft-pdf h6,
+	.ft-pdf p, .ft-pdf pre, .ft-pdf code, .ft-pdf blockquote,
+	.ft-pdf table, .ft-pdf th, .ft-pdf td {
+	  color: inherit; font-family: inherit; font-size: inherit;
+	  font-weight: inherit; line-height: inherit;
+	  margin: 0; padding: 0;
+	  background: transparent; border: none;
+	  white-space: inherit; word-break: inherit;
+	}
+	/* surviving <li>/<ul>/<ol> — hide markers, keep inline */
+	.ft-pdf ul, .ft-pdf ol, .ft-pdf li {
+	  list-style: none; margin: 0; padding: 0; display: inline;
+	}
+
 </style>
 </head>
-<body><div style="position:relative">${buildFreeTextHtml()}${clone.innerHTML}</div></body>
+<body><div style="position:relative">${buildFreeTextHtml()}<div style="padding:3mm 0 0 5mm;width:170mm;box-sizing:content-box">${clone.innerHTML}</div></div></body>
 </html>`
 }
 
@@ -1543,8 +1569,6 @@ function onFtKey(e) {
 
 function onDocClick(e) {
   if (ftJustCreated.value) return
-  // Click on popup toolbar — stay
-  if (e.target.closest('.ft-pop')) return
   // If editing: only exit when clicking outside the currently editing block
   if (ftEdit.value) {
     const editEl = document.querySelector('.ft-blk.ft-edit')
@@ -2063,9 +2087,56 @@ function closeNoteMenu() {
 
 /* ── Edge-style edit wrapper ── */
 .ft-edit-wrap {
+  display: flex; flex-direction: column;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ft-edit-row {
   display: flex; align-items: stretch;
   min-height: 1.6em;
 }
+
+/* Inline formatting toolbar */
+.ft-tbar {
+  display: flex; align-items: center; gap: 3px;
+  padding: 4px 8px;
+  background: #fff;
+  border-bottom: 1px solid #e8eaed;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.ft-tbar button {
+  width: 22px; height: 22px;
+  border: 1px solid #dadce0; border-radius: 4px;
+  background: #fff; color: #202124;
+  cursor: pointer; font-size: 10px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.ft-tbar button:hover { background: #f1f3f4; }
+.ft-tbar-sz {
+  font-size: 11px; font-weight: 600;
+  min-width: 26px; text-align: center;
+  color: #202124;
+}
+.ft-tbar-div { color: #dadce0; margin: 0 1px; }
+.ft-tbar-c {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer;
+  flex-shrink: 0;
+}
+.ft-tbar-c:hover { border-color: #409eff; }
+.ft-tbar-c.on { border-color: #1a73e8; }
+.ft-tbar-pk {
+  width: 14px; height: 14px; border: none; border-radius: 50%;
+  cursor: pointer; padding: 0; background: transparent;
+  flex-shrink: 0;
+}
+.ft-tbar-del {
+  border: none !important; font-size: 12px !important;
+  width: 22px !important; height: 22px !important;
+}
+.ft-tbar-del:hover { background: #fef0f0 !important; color: #f56c6c !important; }
 
 /* Blue left handle */
 .ft-handle {
@@ -2174,26 +2245,11 @@ function closeNoteMenu() {
 .ft-text-inner :deep(div), .ft-text-inner :deep(p) {
   margin: 0;
 }
-
-/* Free text property popup */
-.ft-pop {
-  position: fixed; z-index: 200;
-  display: flex; align-items: center; gap: 4px;
-  padding: 5px 10px; background: #fff; color: #202124;
-  border-radius: 6px;
-  box-shadow: 0 2px 12px rgba(0,0,0,.25), 0 0 0 1px rgba(0,0,0,.08);
-  font-size: 12px;
+/* Surviving list tags: hide markers, keep inline to avoid unwanted breaks */
+.ft-text :deep(ul), .ft-text :deep(ol), .ft-text :deep(li),
+.ft-text-inner :deep(ul), .ft-text-inner :deep(ol), .ft-text-inner :deep(li) {
+  list-style: none; margin: 0; padding: 0; display: inline;
 }
-.ft-pop button { width: 24px; height: 24px; border: 1px solid #dadce0; border-radius: 4px; background: #fff; color: #202124; cursor: pointer; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
-.ft-pop button:hover { background: #f1f3f4; }
-.ft-pop-sz { font-size: 12px; font-weight: 600; min-width: 28px; text-align: center; }
-.ft-pop-div { color: #dadce0; margin: 0 2px; }
-.ft-pop-c { width: 16px; height: 16px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
-.ft-pop-c:hover { border-color: #409eff; }
-.ft-pop-c.on { border-color: #1a73e8; }
-.ft-pop-pk { width: 16px; height: 16px; border: none; border-radius: 50%; cursor: pointer; padding: 0; background: transparent; }
-.ft-pop-del { border: none !important; font-size: 14px !important; }
-.ft-pop-del:hover { background: #fef0f0 !important; color: #f56c6c !important; }
 
-@media print { .ft-overlay, .ft-pop { display: none; } }
+@media print { .ft-overlay, .ft-tbar { display: none; } }
 </style>
