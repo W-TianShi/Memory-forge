@@ -878,8 +878,10 @@ function applyGridColor() {
   el.style.removeProperty('background-position')
   if (gridMode.value) {
     el.style.backgroundImage = `linear-gradient(to right, ${c} 1px, transparent 1px), linear-gradient(to bottom, ${c} 1px, transparent 1px)`
+    el.style.backgroundSize = '5mm 5mm'
   } else if (dotGridMode.value) {
     el.style.backgroundImage = `radial-gradient(circle, ${c} 1px, transparent 1px)`
+    el.style.backgroundSize = '5mm 5mm'
   } else if (hexDotGridMode.value) {
     el.style.backgroundImage = `radial-gradient(circle, ${c} 1px, transparent 1px), radial-gradient(circle, ${c} 1px, transparent 1px)`
     el.style.backgroundSize = '20px 34.64px'
@@ -1902,7 +1904,7 @@ function closeNoteMenu() {
 
 #editor.dot-grid {
   background-color: #fdfdfd;
-  background-image: radial-gradient(circle, #d0d0d0 1px, transparent 1px);
+  background-image: radial-gradient(circle, #e5e5e5 1px, transparent 1px);
   background-size: 5mm 5mm;
 }
 
@@ -1929,8 +1931,8 @@ function closeNoteMenu() {
 #editor.hex-dots {
   background-color: #fdfdfd;
   background-image:
-    radial-gradient(circle, #d0d0d0 1px, transparent 1px),
-    radial-gradient(circle, #d0d0d0 1px, transparent 1px);
+    radial-gradient(circle, #e5e5e5 1px, transparent 1px),
+    radial-gradient(circle, #e5e5e5 1px, transparent 1px);
   background-size: 20px 34.64px;
   background-position: 0 0, 10px 17.32px;
 }

@@ -323,13 +323,13 @@ public class PdfService {
         Color color = parseColor(gridColor);
         if (color == null) {
             switch (gridType) {
-                case "grid":       color = new Color(210, 210, 210); break;
-                case "dot":        color = new Color(208, 208, 208); break;
-                case "iso":        color = new Color(200, 200, 200); break;
+                case "grid":       color = new Color(229, 229, 229); break;
+                case "dot":        color = new Color(229, 229, 229); break;
+                case "iso":        color = new Color(229, 229, 229); break;
                 case "eng-solid":
-                case "eng-dashed": color = new Color(224, 224, 224); break;
-                case "hex":        color = new Color(208, 208, 208); break;
-                default:           color = new Color(210, 210, 210);
+                case "eng-dashed": color = new Color(229, 229, 229); break;
+                case "hex":        color = new Color(229, 229, 229); break;
+                default:           color = new Color(229, 229, 229);
             }
         }
 
@@ -344,6 +344,7 @@ public class PdfService {
                 doc, page, PDPageContentStream.AppendMode.PREPEND, true, true);
 
             cs.setStrokingColor(color);
+            cs.setNonStrokingColor(color);
             cs.setLineWidth(0.25f * mmToPt);
 
             switch (gridType) {
