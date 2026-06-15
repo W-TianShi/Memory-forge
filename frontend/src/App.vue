@@ -66,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import Landing from './views/Landing.vue'
 import PrintQueuePanel from './components/PrintQueuePanel.vue'
 import { usePrintQueue } from './composables/usePrintQueue.js'
@@ -154,6 +154,22 @@ function doLogout() {
   clearAuth()
   username.value = ''
 }
+
+// Listen for auth-expired events from apiFetch (token expired or 401/403)
+function onAuthExpired(e) {
+  username.value = ''
+  errMsg.value = '登录已过期，请重新登录'
+  authMode.value = 'login'
+  authVisible.value = true
+}
+
+onMounted(() => {
+  window.addEventListener('auth-expired', onAuthExpired)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('auth-expired', onAuthExpired)
+})
 </script>
 
 <style>

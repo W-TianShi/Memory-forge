@@ -91,8 +91,18 @@ const { visible: toastVisible, message: toastMsg, type: toastType, show: showToa
 const { add: addToQueue } = usePrintQueue()
 
 async function refreshSheetList() {
-  if (!getUsername()) return
-  sheetList.value = await listSheets()
+  const uname = getUsername()
+  if (!uname) {
+    sheetList.value = []
+    return
+  }
+  try {
+    sheetList.value = await listSheets()
+  } catch (e) {
+    console.error('加载单词纸列表失败:', e)
+    showToast('加载单词纸列表失败，请确认已登录且后端已启动', 'error')
+    sheetList.value = []
+  }
   // auto-load last sheet
   const lastId = localStorage.getItem('mf_last_sheet')
   if (lastId && sheetList.value.find(s => s.id == lastId) && !currentSheetId.value) {
@@ -104,11 +114,16 @@ async function newSheet() {
   if (!getUsername()) { alert('请先登录'); return }
   const title = prompt('请输入单词纸名称', '单词纸 ' + new Date().toLocaleDateString())
   if (!title) return
-  const sheet = await saveSheet({ title, data: '[]', colCount: columnCount.value })
-  currentSheetId.value = sheet.id
-  columnCount.value = 2
-  words.value = Array.from({ length: 28 }, (_, i) => ({ word: '', phonetic: '', meaning: '', originalIndex: Date.now() + i, col: i % 2 }))
-  refreshSheetList()
+  try {
+    const sheet = await saveSheet({ title, data: '[]', colCount: columnCount.value })
+    currentSheetId.value = sheet.id
+    columnCount.value = 2
+    words.value = Array.from({ length: 28 }, (_, i) => ({ word: '', phonetic: '', meaning: '', originalIndex: Date.now() + i, col: i % 2 }))
+    refreshSheetList()
+  } catch (e) {
+    console.error('创建单词纸失败:', e)
+    showToast('创建失败，请确认已登录且后端已启动', 'error')
+  }
 }
 
 async function doSaveSheet() {
@@ -130,15 +145,20 @@ async function doDeleteSheet(id) {
 }
 
 async function pickSheet(id) {
-  syncFromDOM()
-  await doSaveSheetSilent()
-  const sheet = await getSheet(id)
-  columnCount.value = sheet.colCount || 2
-  const data = JSON.parse(sheet.data)
-  words.value = data.map((w, i) => ({ word: w.word || '', phonetic: w.phonetic || '', meaning: w.meaning || '', originalIndex: Date.now() + i, col: i % columnCount.value }))
-  currentSheetId.value = sheet.id
-  localStorage.setItem('mf_last_sheet', id)
-  currentPage.value = 0
+  try {
+    syncFromDOM()
+    await doSaveSheetSilent()
+    const sheet = await getSheet(id)
+    columnCount.value = sheet.colCount || 2
+    const data = JSON.parse(sheet.data)
+    words.value = data.map((w, i) => ({ word: w.word || '', phonetic: w.phonetic || '', meaning: w.meaning || '', originalIndex: Date.now() + i, col: i % columnCount.value }))
+    currentSheetId.value = sheet.id
+    localStorage.setItem('mf_last_sheet', id)
+    currentPage.value = 0
+  } catch (e) {
+    console.error('打开单词纸失败:', e)
+    showToast('打开失败，请确认已登录且后端已启动', 'error')
+  }
 }
 
 async function doSaveSheetSilent() {
@@ -433,7 +453,8 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-        <div v-if="sheetList.length===0" class="lpi-empty">点击新建创建单词纸</div>
+        <div v-if="sheetList.length===0 && !getUsername()" class="lpi-empty">请先登录后再查看单词纸</div>
+        <div v-else-if="sheetList.length===0" class="lpi-empty">点击新建创建单词纸</div>
       </div>
     </div>
 
