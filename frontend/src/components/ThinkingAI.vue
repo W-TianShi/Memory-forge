@@ -2,6 +2,7 @@
 import { ref, computed, nextTick, onUnmounted } from 'vue'
 import { marked } from 'marked'
 import katex from 'katex'
+import { apiFetch } from '../api/apiClient.js'
 
 const props = defineProps({
   selectedProblem: Object
@@ -173,7 +174,7 @@ async function send(msg) {
   try {
     if (abortController) abortController.abort()
     abortController = new AbortController()
-    const response = await fetch('/api/ai/chat', {
+    const response = await apiFetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

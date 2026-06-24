@@ -5,6 +5,10 @@
     <div class="left" :class="{ collapsed: leftCollapsed }">
       <div class="list-header">
         <span class="list-title">笔记列表</span>
+        <button v-if="getUsername()" class="btn-sync" @click="syncCurrentToServer" :disabled="syncStatus === 'saving'"
+          :title="syncStatus === 'saved' ? '已同步' : '保存当前笔记到云端'">
+          {{ syncStatus === 'saving' ? '⏳' : syncStatus === 'saved' ? '☁️✓' : '☁️' }}
+        </button>
         <button class="btn-new" @click="addNote">+ 新建</button>
       </div>
       <div id="noteList">
@@ -27,21 +31,6 @@
           </div>
         </div>
       </div>
-      <Teleport to="#nav-right">
-        <div class="settings-btn" @click.stop="settingsVisible = !settingsVisible" title="设置">
-          <svg v-bind="svg24" v-html="I.settings"></svg>
-        </div>
-        <div class="settings-panel" v-show="settingsVisible" @click.stop>
-          <div class="s-title">数据管理</div>
-          <div class="s-row"><span class="s-label">数据存储在浏览器中</span></div>
-          <div class="s-row s-actions">
-            <button class="s-btn" @click="exportNotes">导出备份</button>
-          </div>
-          <div class="s-row s-actions">
-            <button class="s-btn s-btn-dull" @click="importNotes">导入恢复</button>
-          </div>
-        </div>
-      </Teleport>
     </div>
 
     <div class="toggle-strip" :class="{ collapsed: leftCollapsed }" @click="toggleLeft" :title="leftCollapsed ? '展开列表' : '收起列表'">
@@ -277,6 +266,8 @@ import { marked } from 'marked'
 import katex from 'katex'
 import { I } from '../icons.js'
 import { exportPdf as exportPdfApi } from '../api/pdf.js'
+import { listNotes, createNote as createNoteApi, updateNote as updateNoteApi, deleteNote as deleteNoteApi } from '../api/notes.js'
+import { getUsername } from '../api/auth.js'
 import { useToast } from '../composables/useToast.js'
 import { usePrintQueue } from '../composables/usePrintQueue.js'
 import ToastOverlay from '../components/ToastOverlay.vue'
@@ -301,13 +292,44 @@ const svg1024 = {
 const { visible: toastVisible, message: toastMsg, type: toastType, show: showToast } = useToast()
 const { add: addToQueue } = usePrintQueue()
 
+// ---- API save (manual sync to server) ----
+const syncStatus = ref('') // '', 'saving', 'saved', 'error'
+let syncTimer = null
+
+async function saveToServer(note) {
+  if (!note || !getUsername()) { showToast('请先登录后再同步', 'error'); return }
+  syncStatus.value = 'saving'
+  try {
+    await updateNoteApi(note.id, {
+      title: note.title,
+      content: note.content,
+      freeBlocks: JSON.stringify(note.freeBlocks || [])
+    })
+    syncStatus.value = 'saved'
+    if (syncTimer) clearTimeout(syncTimer)
+    syncTimer = setTimeout(() => { syncStatus.value = '' }, 2000)
+  } catch (e) {
+    console.error('同步失败:', e)
+    syncStatus.value = 'error'
+    showToast('同步失败: ' + (e.message || '网络错误'), 'error')
+  }
+}
+
+function syncCurrentToServer() {
+  const note = notes.value.find(n => n.id === currentId.value)
+  if (note) { syncEditorToNote(); saveToServer(note) }
+}
+
+function saveNotes() {
+  localStorage.setItem('notes', JSON.stringify(notes.value))
+}
+
 // ---- Notes ----
 const notes = ref([])
 const currentId = ref(null)
 const editorRef = ref(null)
 const isEditorEmpty = ref(true)
 const leftCollapsed = ref(false)
-const settingsVisible = ref(false)
 const gridMode = ref(false)
 const dotGridMode = ref(false)
 const isoGridMode = ref(false)
@@ -550,12 +572,10 @@ function normalizeHtml(html) {
 
 const NOTE_COLORS = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399', '#5470c6', '#91cc75', '#fc8452', '#ee6666', '#73c0de']
 function noteColor(id) { return NOTE_COLORS[id % NOTE_COLORS.length] }
+function tryParseJson(str) { try { return JSON.parse(str) } catch { return null } }
 const currentNote = computed(() => notes.value.find(n => n.id === currentId.value))
 const currentTitle = computed(() => currentNote.value?.title || '未命名笔记')
 
-function saveNotes() {
-  localStorage.setItem('notes', JSON.stringify(notes.value))
-}
 function syncEditorToNote() {
   const note = notes.value.find(n => n.id === currentId.value)
   if (note && editorRef.value) { note.content = editorRef.value.innerHTML; saveFreeBlocks() }
@@ -683,36 +703,54 @@ function loadNoteContent(note) {
   })
 }
 
-function addNote() {
+async function addNote() {
   const t = prompt('笔记名')
   if (!t) return
-  const id = Date.now()
+  const localId = Date.now()
+  let serverId = null
+
+  // Try to create on server if logged in
+  if (getUsername()) {
+    try {
+      const note = await createNoteApi(t, '')
+      serverId = note.id
+    } catch (e) { /* offline — will use localId */ }
+  }
+
+  const id = serverId || localId
   notes.value.push({ id, title: t, content: '' })
   currentId.value = id
   loadNoteContent(null)
   saveNotes()
+  if (serverId) showToast('已创建并保存到云端')
 }
 
-function deleteNote(id) {
+async function deleteNote(id) {
+  // Delete from server if logged in
+  if (getUsername()) {
+    try { await deleteNoteApi(id) } catch (e) { /* try best-effort */ }
+  }
+  // Delete locally
   notes.value = notes.value.filter(n => n.id !== id)
+  saveNotes()
   if (currentId.value === id) {
     if (notes.value.length > 0) {
       currentId.value = notes.value[0].id
       loadNoteContent(notes.value[0])
     } else {
       currentId.value = Date.now()
-      notes.value.push({ id: currentId.value, title: '默认笔记', content: '' })
+      notes.value = [{ id: currentId.value, title: '默认笔记', content: '' }]
+      saveNotes()
       loadNoteContent(null)
     }
   }
-  saveNotes()
   showToast('已删除')
 }
 
 function switchNote(note) {
   if (currentId.value === note.id) return
   syncEditorToNote()
-  saveNotes()
+  saveNotes() // save current before switching
   currentId.value = note.id
   loadNoteContent(note)
   showToast('切换：' + note.title)
@@ -728,7 +766,6 @@ function exportNotes() {
   a.click()
   URL.revokeObjectURL(a.href)
   showToast('备份已下载')
-  settingsVisible.value = false
 }
 
 function importNotes() {
@@ -742,17 +779,33 @@ function importNotes() {
       const data = JSON.parse(await file.text())
       if (Array.isArray(data)) {
         notes.value = data
-        localStorage.setItem('notes', JSON.stringify(data))
+        saveNotes()
+        // Also sync to server if logged in
+        if (getUsername()) {
+          let synced = 0
+          for (const n of data) {
+            try {
+              const created = await createNoteApi(n.title || '导入笔记', n.content || '')
+              n.id = created.id
+              if (n.freeBlocks?.length) {
+                await updateNoteApi(created.id, { freeBlocks: JSON.stringify(n.freeBlocks) })
+              }
+              synced++
+            } catch { /* skip failed */ }
+          }
+          if (synced > 0) { saveNotes(); showToast(`已恢复 ${data.length} 条（${synced} 条已同步云端）`) }
+          else showToast(`已恢复 ${data.length} 条（本地）`)
+        } else {
+          showToast(`已恢复 ${data.length} 条笔记`)
+        }
         if (data.length > 0) {
           currentId.value = data[0].id
           loadNoteContent(data[0])
         }
-        showToast(`已恢复 ${data.length} 条笔记`)
       } else {
         showToast('文件格式不对')
       }
     } catch { showToast('文件损坏，无法读取') }
-    settingsVisible.value = false
   }
   input.click()
 }
@@ -1518,9 +1571,33 @@ function createCoverBoard() {
 }
 
 // ---- Init ----
-onMounted(() => {
+onMounted(async () => {
+  // Always load from localStorage first
   const saved = localStorage.getItem('notes')
   if (saved) { try { notes.value = JSON.parse(saved) } catch (e) { notes.value = [] } }
+
+  // If logged in, pull server notes and merge (server notes take priority on ID conflict)
+  if (getUsername()) {
+    try {
+      const serverNotes = await listNotes()
+      if (serverNotes.length > 0) {
+        const serverMap = new Map()
+        serverNotes.forEach(n => {
+          serverMap.set(n.id, {
+            id: n.id, title: n.title, content: n.content || '',
+            freeBlocks: tryParseJson(n.freeBlocks) || []
+          })
+        })
+        // Merge: server notes replace local notes with same ID; add new ones
+        const localMap = new Map(notes.value.map(n => [n.id, n]))
+        serverMap.forEach((v, k) => localMap.set(k, v)) // server wins on conflict
+        notes.value = [...localMap.values()]
+      }
+    } catch (e) {
+      console.error('从服务器加载笔记失败:', e)
+    }
+  }
+
   if (notes.value.length > 0) {
     currentId.value = notes.value[0].id
     loadNoteContent(notes.value[0])
@@ -1528,7 +1605,9 @@ onMounted(() => {
     currentId.value = Date.now()
     notes.value = [{ id: currentId.value, title: '默认笔记', content: '' }]
     saveNotes()
+    loadNoteContent(null)
   }
+
   gridMode.value = true
   document.addEventListener('selectionchange', updateFormatStates)
   document.addEventListener('click', closeNoteMenu)
@@ -1667,6 +1746,17 @@ function closeNoteMenu() {
   white-space: nowrap;
 }
 .btn-new:hover { background: #337ecc; box-shadow: 0 2px 8px rgba(64,158,255,.3); }
+
+.btn-sync {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: #f5f7fa; border: 1px solid #e0e0e0;
+  border-radius: 5px; cursor: pointer;
+  font-size: 14px; line-height: 1;
+  transition: all 0.15s;
+}
+.btn-sync:hover:not(:disabled) { background: #ecf5ff; border-color: #409eff; }
+.btn-sync:disabled { opacity: 0.6; cursor: wait; }
 
 .settings-btn {
   width: 32px; height: 32px;

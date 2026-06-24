@@ -55,7 +55,7 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .antMatchers("/api/auth/**").permitAll()
-                .antMatchers("/api/ai/**", "/api/word-sheets/**", "/api/pdf/**").authenticated()
+                .antMatchers("/api/ai/**", "/api/word-sheets/**", "/api/pdf/**", "/api/notes/**").authenticated()
                 .anyRequest().permitAll()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
